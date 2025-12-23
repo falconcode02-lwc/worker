@@ -1,6 +1,7 @@
 package io.falconFlow.controller;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.protobuf.ByteString;
 import io.falconFlow.DSL.Helpers.BeanFetcher;
@@ -26,6 +27,7 @@ import io.temporal.client.WorkflowClient;
 import io.temporal.client.WorkflowOptions;
 import io.temporal.client.WorkflowStub;
 import io.temporal.serviceclient.WorkflowServiceStubs;
+import jakarta.annotation.PostConstruct;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
@@ -50,7 +52,17 @@ public class WorkflowManagerController {
     @Autowired
     WorkflowsService workflowsService;
 
-    ObjectMapper mapper = new ObjectMapper();
+    ObjectMapper mapper = new ObjectMapper(
+
+    );
+
+    @PostConstruct
+    void init(){
+        mapper.configure(
+                DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES,
+                false
+        );
+    }
 
 
     @Autowired private BeanFetcher serviceFetcher;
@@ -82,6 +94,10 @@ public class WorkflowManagerController {
 
 
         WorkflowModel workflowNode = mapper.readValue(responseWrapper.getWorkflowJson(),  WorkflowModel.class);
+
+        workflowNode.setWorkflowDefId(responseWrapper.getWorkflowDefId());
+        workflowNode.setWorkflowCode(responseWrapper.getWorkflowCode());
+
         workflowNode.setId(res.getWorkflowId());
         workflowNode.setInput(res.getInput());
         WorkflowClient.start(workflow::runWorkflow, workflowNode);
