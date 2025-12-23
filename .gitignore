@@ -2,3 +2,4 @@
 build/
 *.sh
 src/main/resources/application-prod.properties
+.gradle

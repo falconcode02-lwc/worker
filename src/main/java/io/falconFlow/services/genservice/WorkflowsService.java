@@ -95,6 +95,7 @@ public class WorkflowsService {
         CreateResponse res = new CreateResponse();
         String workflowId = workFlowManagerRequest.getWorkflowId() != null && !workFlowManagerRequest.getWorkflowId().isEmpty() ? workFlowManagerRequest.getWorkflowId() : UUID.randomUUID().toString();
         GetWorkFlowsProjection proj =  findByCode(workFlowManagerRequest.getWorkflowCode());
+
         res.setWorkflowId(workflowId);
         res.setStatus(ControllerStatus.SUCCESS);
         if(proj == null || !proj.getActive()){
@@ -142,6 +143,9 @@ public class WorkflowsService {
 
             res.setWorkflowId(workflowId);
         }
+
+        responseWrapper.setWorkflowCode(proj.getCode());
+        responseWrapper.setWorkflowDefId(proj.getId().toString());
         responseWrapper.setWorkflowJson(proj.getWorkflowJson());
         responseWrapper.setCreateResponse(res);
         return responseWrapper;
