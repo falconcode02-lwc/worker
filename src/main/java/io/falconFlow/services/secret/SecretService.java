@@ -10,7 +10,7 @@ public interface SecretService {
     SecretEntity update(Long id, SecretEntity secret);
     Optional<SecretEntity> get(Long id);
     List<SecretEntity> list();
-    List<SecretEntity> findByType(String type);
+    List<SecretEntity> findByType(String type, String isDataKeys);
     Optional<SecretEntity> findByTypeAndName(String type, String name);
     void delete(Long id);
     Optional<SecretEntity> findByName(String name);
