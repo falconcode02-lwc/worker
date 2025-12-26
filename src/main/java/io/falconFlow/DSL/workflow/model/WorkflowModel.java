@@ -1,5 +1,6 @@
 package io.falconFlow.DSL.workflow.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import io.falconFlow.DSL.workflow.helpers.ActivityType;
 import io.falconFlow.DSL.model.InputMap;
 import io.temporal.api.update.v1.Input;
@@ -7,37 +8,76 @@ import io.temporal.api.update.v1.Input;
 import java.util.List;
 import java.util.Map;
 
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class WorkflowModel {
+
+  private String workflowDefId;
+  private String workflowCode;
+  private String workSpaceId;
+  private String projectId;
+
 
   private String id;
 
   private List<Node> workflow;
 
   // Getters and Setters
-  public List<Node> getWorkflow() {
+    public List<Node> getWorkflow() {
     return workflow;
-  }
+    }
 
-  public void setWorkflow(List<Node> workflow) {
+    public void setWorkflow(List<Node> workflow) {
     this.workflow = workflow;
-  }
+    }
 
-  private InputMap input;
+    private InputMap input;
 
-  public InputMap getInput() {
+    public InputMap getInput() {
     return input;
-  }
+    }
 
-  public void setInput(InputMap input) {
+    public void setInput(InputMap input) {
     this.input = input;
-  }
+    }
 
     public String getId() {
-        return id;
+    return id;
     }
 
     public void setId(String id) {
-        this.id = id;
+    this.id = id;
+    }
+
+    public String getWorkflowDefId() {
+        return workflowDefId;
+    }
+
+    public void setWorkflowDefId(String workflowDefId) {
+        this.workflowDefId = workflowDefId;
+    }
+
+    public String getWorkflowCode() {
+        return workflowCode;
+    }
+
+    public void setWorkflowCode(String workflowCode) {
+        this.workflowCode = workflowCode;
+    }
+
+    public String getWorkSpaceId() {
+        return workSpaceId;
+    }
+
+    public void setWorkSpaceId(String workSpaceId) {
+        this.workSpaceId = workSpaceId;
+    }
+
+    public String getProjectId() {
+        return projectId;
+    }
+
+    public void setProjectId(String projectId) {
+        this.projectId = projectId;
     }
 
     // 🔹 Inner Node class
