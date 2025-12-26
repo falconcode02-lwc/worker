@@ -1,8 +1,14 @@
 package io.falconFlow.services.secret;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.falconFlow.configuration.CacheConfig;
 import io.falconFlow.entity.SecretEntity;
+import io.falconFlow.model.PluginSecretModel;
 import io.falconFlow.repository.SecretRepository;
+import io.falconFlow.services.isolateservices.PluginManagerService;
+import org.springframework.beans.TypeConverter;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.CachePut;
@@ -11,7 +17,9 @@ import org.springframework.stereotype.Service;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.Flow;
 import java.util.stream.Collectors;
 
 @Service
@@ -20,6 +28,13 @@ public class SecretServiceImpl implements SecretService {
 
     private final SecretRepository secretRepository;
     private final CryptoService cryptoService;
+
+    @Autowired
+    ObjectMapper mapper;
+
+    @Autowired
+    PluginManagerService pluginManagerService;
+
 
     @Autowired
     public SecretServiceImpl(SecretRepository secretRepository, CryptoService cryptoService) {
@@ -86,8 +101,33 @@ public class SecretServiceImpl implements SecretService {
     }
 
     @Override
-    public List<SecretEntity> findByType(String type) {
-        return secretRepository.findByType(type);
+    public List<SecretEntity> findByType(String type, String isDataKeys) {
+
+        PluginSecretModel psm = pluginManagerService.getSecret(type);
+        List<PluginSecretModel.Fields> s = psm.getFields().stream().filter(d->d.getType().equals("password")).toList();
+
+
+        List<SecretEntity> ett =  secretRepository.findByType(type);
+        for (SecretEntity et : ett) {
+            String getDecreptedValues = this.getDecreptedValue(et.getValue());
+            try {
+                Map mp =  mapper.readValue(getDecreptedValues, new TypeReference<Map<String, Object>>() {});
+                System.out.println(mp);
+               for (PluginSecretModel.Fields fld : s){
+                   System.out.println(fld);
+                   mp.put(fld.getId(), "*********************");
+               }
+                et.setValue(mapper.writeValueAsString(mp));
+            } catch (JsonProcessingException e) {
+                throw new RuntimeException(e);
+            }
+
+
+
+        }
+
+        System.out.println(ett);
+        return ett;
     }
 
     @Override

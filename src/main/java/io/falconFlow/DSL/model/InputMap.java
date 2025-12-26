@@ -19,6 +19,11 @@ public class InputMap extends HashMap<String, Object> {
         return val == null ? null : val.toString();
     }
 
+    public String getStr(String key, String defaultValue) {
+        Object val = this.get(key);
+        return val == null ? defaultValue : val.toString();
+    }
+
     public int getInt(String key, int defaultValue) {
         Object val = this.get(key);
         if (val == null) {
@@ -48,4 +53,6 @@ public class InputMap extends HashMap<String, Object> {
         }
         return Boolean.parseBoolean(val.toString());
     }
+
+
 }

@@ -12,6 +12,7 @@ import java.util.Optional;
 public interface PluginRepository extends JpaRepository<PluginEntity, Integer> {
     Optional<PluginEntity> findByPluginId(String pluginId);
 
+
     // search by plugin name or pluginId (case-insensitive) with pagination
     Page<PluginEntity> findByPluginNameContainingIgnoreCaseOrPluginIdContainingIgnoreCase(String name, String pluginId, Pageable pageable);
 }

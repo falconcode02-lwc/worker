@@ -1,10 +1,13 @@
 package io.falconFlow.DSL.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import io.falconFlow.DSL.workflow.model.StateModel;
 
 import java.util.Date;
 import java.util.Map;
 
+
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class FRequest{
 
   private String workflowId;
@@ -18,7 +21,9 @@ public class FRequest{
   private StateModel state;
   private InputMap userInput;
   private InputMap pluginProps;
-  private Map previous;
+  private Map<String, Object> previous;
+  private String asyncId;
+  private byte[] asyncToken;
 
     public String getActivityId() {
     return activityId;
@@ -109,11 +114,28 @@ public class FRequest{
         this.pluginProps = pluginProps;
     }
 
-    public Map getPrevious() {
+    public Map<String,Object> getPrevious() {
         return previous;
     }
 
-    public void setPrevious(Map previous) {
+    public void setPrevious(Map<String,Object> previous) {
         this.previous = previous;
+    }
+
+
+    public String getAsyncId() {
+        return asyncId;
+    }
+
+    public void setAsyncId(String asyncId) {
+        this.asyncId = asyncId;
+    }
+
+    public byte[] getAsyncToken() {
+        return asyncToken;
+    }
+
+    public void setAsyncToken(byte[] asyncToken) {
+        this.asyncToken = asyncToken;
     }
 }

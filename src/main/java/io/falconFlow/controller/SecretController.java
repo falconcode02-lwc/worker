@@ -1,6 +1,7 @@
 package io.falconFlow.controller;
 
 import io.falconFlow.entity.SecretEntity;
+import io.falconFlow.services.isolateservices.PluginManagerService;
 import io.falconFlow.services.secret.SecretService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
@@ -14,6 +15,9 @@ import java.util.List;
 public class SecretController {
 
     private final SecretService secretService;
+
+    @Autowired
+    PluginManagerService pluginService;
 
     @Autowired
     public SecretController(SecretService secretService) {
@@ -39,9 +43,10 @@ public class SecretController {
     }
 
     @GetMapping("/getByType")
-    public ResponseEntity<List<SecretEntity>> listByType(@RequestParam(defaultValue = "") String type) {
-        return ResponseEntity.ok(secretService.findByType(type));
+    public ResponseEntity<List<SecretEntity>> listByType(@RequestParam(defaultValue = "") String type, @RequestParam(defaultValue = "") String isDataKeys) {
+        return ResponseEntity.ok(secretService.findByType(type, isDataKeys));
     }
+
 
     @PutMapping("/{id}")
     public ResponseEntity<SecretEntity> update(@PathVariable Long id, @RequestBody SecretEntity secret) {
