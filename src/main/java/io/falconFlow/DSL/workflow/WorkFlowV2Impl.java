@@ -5,7 +5,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.falconFlow.DSL.activity.ConditionActivity;
 import io.falconFlow.DSL.activity.FunctionActivity;
 import io.falconFlow.DSL.activity.IConditionEntryActivity;
-import io.falconFlow.DSL.activity.MicroserviceActivity;
 import io.falconFlow.DSL.model.*;
 import io.falconFlow.DSL.utils.HandlebarsUtil;
 import io.falconFlow.DSL.utils.JQUtils;
@@ -16,11 +15,8 @@ import io.falconFlow.DSL.workflow.model.StateModel;
 import io.falconFlow.DSL.workflow.model.WorkflowModel;
 import io.falconFlow.DSL.workflow.model.WorkflowResultModel;
 import io.falconFlow.services.isolateservices.StateManagerService;
-import io.temporal.activity.Activity;
 import io.temporal.activity.ActivityOptions;
 import io.temporal.common.RetryOptions;
-import io.temporal.failure.ActivityFailure;
-import io.temporal.failure.ApplicationFailure;
 import io.temporal.spring.boot.WorkflowImpl;
 import io.temporal.workflow.Workflow;
 
@@ -98,14 +94,11 @@ public class WorkFlowV2Impl implements IWorkFlowv2 {
                       if (res1.getState() != null) {
                           state.setStateValue(res1.getState().getStateValue());
                       }
-
                       if(res1.getNext() != null){
                           previousResult.putAll(res1.getNext());
                       }
                   }
               }
-
-
               nextId = step.getNext();
               nodeResult.setStatus("Success");
 
