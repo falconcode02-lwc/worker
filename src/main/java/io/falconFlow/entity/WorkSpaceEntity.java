@@ -1,19 +1,14 @@
 package io.falconFlow.entity;
 
 import jakarta.persistence.*;
-
-import java.time.LocalDateTime;
-import java.time.ZoneId;
 import java.util.UUID;
-
-// import jakarta.persistence.UniqueConstraint;
 
 @Entity
 @Table(
         name = "ff_workspaces",
         uniqueConstraints = {@UniqueConstraint(name = "ff_workspaces_code_UN", columnNames = "code")}
 )
-public class WorkSpaceEntity {
+public class WorkSpaceEntity extends AuditableEntity{
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
@@ -39,31 +34,14 @@ public class WorkSpaceEntity {
     @Column(name = "active", nullable = false)
     private boolean active = true;
 
-    @Column(
-            name = "created_time",
-            nullable = false,
-            updatable = false)
-    private LocalDateTime createdTime;
-
-    @Column(name = "modified_time")
-    private LocalDateTime modifiedTime;
-
     @PrePersist
     public void prePersist() {
-        this.createdTime = LocalDateTime.now(ZoneId.systemDefault());
         this.active = true;
-    }
-
-    @PreUpdate
-    public void preUpdate() {
-        this.modifiedTime = LocalDateTime.now(ZoneId.systemDefault());
     }
 
     public UUID getUuid() {
         return id;
     }
-
-    public void setUuid(UUID id) { this.id = id; }
 
     public String getName() {
         return name;
@@ -73,24 +51,12 @@ public class WorkSpaceEntity {
         this.name = name;
     }
 
-    public String getIcon() { return icon; }
-
-    public void setIcon(String icon) { this.icon = icon; }
-
-    public LocalDateTime getCreatedTime() {
-        return createdTime;
+    public String getIcon() {
+        return icon;
     }
 
-    public void setCreatedTime(LocalDateTime createdTime) {
-        this.createdTime = createdTime;
-    }
-
-    public LocalDateTime getModifiedTime() {
-        return modifiedTime;
-    }
-
-    public void setModifiedTime(LocalDateTime modifiedTime) {
-        this.modifiedTime = modifiedTime;
+    public void setIcon(String icon) {
+        this.icon = icon;
     }
 
     public String getDescription() {
@@ -117,9 +83,13 @@ public class WorkSpaceEntity {
         this.code = code;
     }
 
-    public String getType() { return type; }
+    public String getType() {
+        return type;
+    }
 
-    public void setType(String type) { this.type = type; }
+    public void setType(String type) {
+        this.type = type;
+    }
 
     public String getOrgId() {
         return orgId;
