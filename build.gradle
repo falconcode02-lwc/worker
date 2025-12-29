@@ -26,7 +26,7 @@ java {
 ext {
     otelVersion = '1.30.1'
     otelVersionAlpha = "${otelVersion}-alpha"
-    javaSDKVersion = '1.31.0'
+    javaSDKVersion = '1.32.1'
     camelVersion = '3.22.1'
     jarVersion = '1.0.0'
 }
@@ -43,7 +43,7 @@ dependencies {
 	implementation ('org.springframework.boot:spring-boot-starter-web'){
         exclude group: 'org.springframework.boot', module: 'spring-boot-starter-tomcat'
     }
-
+    implementation("org.apache.commons:commons-lang3:3.20.0")
 	providedRuntime 'org.springframework.boot:spring-boot-starter-tomcat'
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
@@ -64,7 +64,7 @@ dependencies {
 
     implementation 'org.springframework.boot:spring-boot-starter-amqp'
 
-
+    implementation("io.grpc:grpc-netty-shaded:1.77.0")
     implementation 'jakarta.persistence:jakarta.persistence-api:3.1.0'
     // we set this as impl depends to use embedded kafka in samples not just tests
     implementation "io.temporal:temporal-spring-boot-starter:$javaSDKVersion"

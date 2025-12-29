@@ -27,6 +27,9 @@ import io.temporal.client.WorkflowClient;
 import io.temporal.client.WorkflowOptions;
 import io.temporal.client.WorkflowStub;
 import io.temporal.serviceclient.WorkflowServiceStubs;
+
+import io.temporal.client.ActivityCompletionClient;
+
 import jakarta.annotation.PostConstruct;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -339,5 +342,28 @@ public class WorkflowManagerController {
         return new ResponseEntity<>(res, HttpStatus.OK);
     }
 
+    
 
+
+
+    @PostMapping(
+            value = "/webhook",
+            consumes = {MediaType.APPLICATION_JSON_VALUE},
+            produces = {MediaType.APPLICATION_JSON_VALUE})
+    public ResponseEntity<ActionStatus> completeActivity(@RequestBody ActivityCompletionRequest request) {
+        ActionStatus res = new ActionStatus();
+        try {
+
+            ActivityCompletionClient completionClient = client.newActivityCompletionClient();
+            byte[] taskToken = Base64.getDecoder().decode(request.getRequestId());
+            completionClient.complete(taskToken, request.getResult());
+            res.setStatus("SUCCESS");
+        } catch (Exception e) {
+            res.setStatus("FAILED");
+            res.setErrorMessage(e.getMessage());
+            e.printStackTrace();
+            return new ResponseEntity<>(res, HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+        return new ResponseEntity<>(res, HttpStatus.OK);
+    }
 }

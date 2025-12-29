@@ -1,6 +1,9 @@
 package io.falconFlow.services.isolateservices;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.falconFlow.entity.PluginEntity;
+import io.falconFlow.model.PluginSecretModel;
 import io.falconFlow.repository.PluginRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -14,6 +17,9 @@ import java.util.Optional;
 public class PluginManagerService {
 
 	private final PluginRepository pluginRepository;
+
+    @Autowired
+    ObjectMapper mapper;
 
 	@Autowired
 	public PluginManagerService(PluginRepository pluginRepository) {
@@ -162,4 +168,18 @@ public class PluginManagerService {
 			return encoded;
 		}
 	}
+
+    public PluginSecretModel getSecret(String pluginId){
+       Optional<PluginEntity> pluginEntity =  pluginRepository.findByPluginId(pluginId);
+       if(pluginEntity!=null && pluginEntity.isPresent()){
+           String secrets =  pluginEntity.get().getSecrets();
+           try {
+             return mapper.readValue(secrets, PluginSecretModel.class);
+           } catch (JsonProcessingException e) {
+               return null;
+           }
+       }
+       return  null;
+    }
+
 }
