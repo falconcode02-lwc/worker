@@ -76,11 +76,24 @@ dependencies {
     implementation 'com.google.guava:guava:33.2.1-jre'
     implementation("jakarta.annotation:jakarta.annotation-api:3.0.0")
 
+    // External secret vault integrations
+    implementation 'com.azure:azure-security-keyvault-secrets:4.10.0'
+    implementation 'com.azure:azure-identity:1.15.0'
+    implementation 'com.google.cloud:google-cloud-secretmanager:2.56.0'
+
 
 //    dependencies {
 //        errorproneJavac('com.google.errorprone:javac:9+181-r4173-1')
 //        errorprone('com.google.errorprone:error_prone_core:2.28.0')
 //    }
+}
+
+// Configure bootRun to use custom truststore with Zscaler cert (fixes TLS interception)
+bootRun {
+    jvmArgs = [
+        "-Djavax.net.ssl.trustStore=${System.getProperty('user.home')}/.ssl/custom-cacerts",
+        '-Djavax.net.ssl.trustStorePassword=changeit'
+    ]
 }
 
 tasks.named('test') {

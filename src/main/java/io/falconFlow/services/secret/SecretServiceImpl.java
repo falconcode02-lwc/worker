@@ -8,18 +8,19 @@ import io.falconFlow.entity.SecretEntity;
 import io.falconFlow.model.PluginSecretModel;
 import io.falconFlow.repository.SecretRepository;
 import io.falconFlow.services.isolateservices.PluginManagerService;
-import org.springframework.beans.TypeConverter;
+import io.falconFlow.services.secret.vault.VaultWriter;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.CachePut;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.Locale;
 import java.util.Optional;
-import java.util.concurrent.Flow;
 import java.util.stream.Collectors;
 
 @Service
@@ -28,6 +29,7 @@ public class SecretServiceImpl implements SecretService {
 
     private final SecretRepository secretRepository;
     private final CryptoService cryptoService;
+    private final Map<String, VaultWriter> vaultWriters;
 
     @Autowired
     ObjectMapper mapper;
@@ -37,20 +39,71 @@ public class SecretServiceImpl implements SecretService {
 
 
     @Autowired
-    public SecretServiceImpl(SecretRepository secretRepository, CryptoService cryptoService) {
+    public SecretServiceImpl(
+            SecretRepository secretRepository,
+            CryptoService cryptoService,
+            Map<String, VaultWriter> vaultWriters
+    ) {
         this.secretRepository = secretRepository;
         this.cryptoService = cryptoService;
+        this.vaultWriters = vaultWriters;
     }
 
-    @CachePut(value = CacheConfig.SECRETS_CACHE, key = "#result.id")
-    @Override
-    public SecretEntity create(SecretEntity secret) {
+    /**
+     * Existing DB save logic extracted into a dedicated method.
+     * IMPORTANT: keep this logic identical to the earlier DB-only create() implementation.
+     */
+    public SecretEntity createInDatabase(SecretEntity secret) {
         Instant now = Instant.now();
         secret.setCreatedAt(now);
         secret.setUpdatedAt(now);
         // encrypt value before saving
         secret.setValue(cryptoService.encrypt(secret.getValue()));
         return secretRepository.save(secret);
+    }
+
+    /**
+     * New entry point used by controller when vaultType support is enabled.
+     */
+    public void storeByVaultType(SecretDto dto) {
+        String vaultType = (dto == null) ? "DB" : dto.getVaultTypeOrDefault();
+
+        // DB path must reuse the existing DB flow.
+        if ("DB".equals(vaultType)) {
+            createInDatabase(dto.toEntity());
+            return;
+        }
+
+        VaultWriter writer = resolveWriter(vaultType);
+        writer.store(dto);
+    }
+
+    private VaultWriter resolveWriter(String vaultType) {
+        String key = (vaultType == null) ? "DB" : vaultType.trim().toUpperCase(Locale.ROOT);
+        if (!StringUtils.hasText(key)) key = "DB";
+
+    // Map external API values to internal Spring bean names (avoid collisions like bean name 'DB').
+    if ("DB".equals(key)) key = "VAULT_DB";
+    else if ("AZURE".equals(key)) key = "VAULT_AZURE";
+    else if ("GCP".equals(key)) key = "VAULT_GCP";
+
+        if (vaultWriters == null) {
+            throw new IllegalStateException("Vault writers are not configured");
+        }
+
+        VaultWriter writer = vaultWriters.get(key);
+        if (writer == null) {
+            throw new IllegalArgumentException("Invalid vaultType: " + vaultType);
+        }
+        return writer;
+    }
+
+    @CachePut(value = CacheConfig.SECRETS_CACHE, key = "#result.id")
+    @Override
+    public SecretEntity create(SecretEntity secret) {
+    // Backward compatible: existing controller still calls this method.
+    // Keep DB behavior unchanged.
+    return createInDatabase(secret);
     }
 
     @CacheEvict(value = CacheConfig.SECRETS_CACHE, allEntries = true)
