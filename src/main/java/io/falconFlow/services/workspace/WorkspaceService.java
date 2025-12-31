@@ -12,6 +12,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
 import java.util.UUID;
@@ -30,6 +31,15 @@ public class WorkspaceService {
         );
 
         return workspaceRepository.findByOrgId(orgId,pageable).map(this::toWorkspaceDto);
+    }
+    public Page<WorkspaceListDTO> listWorkspaces(int page, int size) {
+        Pageable pageable = PageRequest.of(
+                page,
+                size,
+                Sort.by("createdTime").descending()
+        );
+
+        return workspaceRepository.findAll(pageable).map(this::toWorkspaceDto);
     }
 
     @Transactional
@@ -62,11 +72,24 @@ public class WorkspaceService {
         return toResponseDto(saved);
     }
 
+    @Transactional
+    public void deleteWorkspace(UUID id) throws Exception{
+
+        WorkSpaceEntity entity = workspaceRepository.findById(id)
+                .orElseThrow(() ->
+                        new Exception("Workspace not found"));
+
+        workspaceRepository.delete(entity);
+    }
+
     private WorkspaceListDTO toWorkspaceDto(WorkSpaceEntity entity) {
         WorkspaceListDTO dto = new WorkspaceListDTO();
+        dto.setId(entity.getId());
         dto.setOrgId(entity.getOrgId());
         dto.setName(entity.getName());
         dto.setType(entity.getType());
+        dto.setDescription(entity.getDescription());
+        dto.setIcon(entity.getIcon());
         dto.setCreatedTime(entity.getCreatedTime());
         dto.setModifiedTime(entity.getModifiedTime());
         return dto;
@@ -74,7 +97,7 @@ public class WorkspaceService {
 
     private WorkspaceResponseDTO toResponseDto(WorkSpaceEntity entity) {
         WorkspaceResponseDTO dto = new WorkspaceResponseDTO();
-        dto.setId(entity.getUuid());
+        dto.setId(entity.getId());
         dto.setName(entity.getName());
         dto.setOrgId(entity.getOrgId());
         dto.setType(entity.getType());

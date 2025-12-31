@@ -1,13 +1,25 @@
 package io.falconFlow.dto;
 
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 public class WorkspaceListDTO {
+    private UUID id;
     private String orgId;
     private String name;
+    private String icon;
+    private String description;
     private String type;
     private LocalDateTime createdTime;
     private LocalDateTime modifiedTime;
+
+    public UUID getId() {
+        return id;
+    }
+
+    public void setId(UUID id) {
+        this.id = id;
+    }
 
     public String getOrgId() {
         return orgId;
@@ -47,5 +59,21 @@ public class WorkspaceListDTO {
 
     public void setModifiedTime(LocalDateTime modifiedTime) {
         this.modifiedTime = modifiedTime;
+    }
+
+    public String getIcon() {
+        return icon;
+    }
+
+    public void setIcon(String icon) {
+        this.icon = icon;
+    }
+
+    public String getDescription() {
+        return description;
+    }
+
+    public void setDescription(String description) {
+        this.description = description;
     }
 }
