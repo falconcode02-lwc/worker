@@ -12,6 +12,7 @@ import com.google.cloud.secretmanager.v1.SecretPayload;
 import com.google.cloud.secretmanager.v1.SecretVersion;
 import com.google.cloud.secretmanager.v1.Replication;
 import com.google.protobuf.ByteString;
+import io.falconFlow.entity.SecretEntity;
 import io.falconFlow.services.secret.SecretDto;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -19,11 +20,11 @@ import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
 import java.io.FileInputStream;
+import java.time.Instant;
 
 /**
  * Stores secrets in Google Secret Manager.
- *
- * NOTE: This bypasses DB persistence.
+ * Returns SecretEntity for consistent API response (same format as DB).
  */
 @Component("VAULT_GCP")
 public class GoogleSecretManagerWriter implements VaultWriter {
@@ -37,7 +38,7 @@ public class GoogleSecretManagerWriter implements VaultWriter {
     }
 
     @Override
-    public void store(SecretDto request) {
+    public SecretEntity store(SecretDto request) {
         validate(request);
 
         try (SecretManagerServiceClient client = buildClient()) {
@@ -69,11 +70,30 @@ public class GoogleSecretManagerWriter implements VaultWriter {
                             .build()
             );
 
-            log.info("Stored secret '{}' in Google Secret Manager (version={})", secretId, version.getName());
+            String versionName = version.getName();
+            log.info("Stored secret '{}' in Google Secret Manager (version={})", secretId, versionName);
+            
+            // Return SecretEntity for consistent response format
+            return buildResponseEntity(request, versionName);
         } catch (Exception ex) {
             log.error("Google Secret Manager store failed for secret '{}'", safeName(request), ex);
             throw new RuntimeException("Failed to store secret in Google Secret Manager", ex);
         }
+    }
+
+    /**
+     * Build a SecretEntity response for GCP vault.
+     * Note: Value is NOT returned (security).
+     */
+    private SecretEntity buildResponseEntity(SecretDto request, String versionName) {
+        SecretEntity entity = new SecretEntity();
+        entity.setName(request.getName());
+        entity.setType(request.getType());
+        entity.setValue("[STORED IN GCP SECRET MANAGER]"); // Don't expose actual value
+        entity.setMetadata(request.getMetadata());
+        entity.setCreatedAt(Instant.now());
+        entity.setUpdatedAt(Instant.now());
+        return entity;
     }
 
     private SecretManagerServiceClient buildClient() throws Exception {

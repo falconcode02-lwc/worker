@@ -28,15 +28,19 @@ public class DatabaseVaultWriter implements VaultWriter {
     }
 
     @Override
-    public void store(SecretDto request) {
-    // Reuse existing DB save logic exactly as it is.
-    // (Done here to avoid a circular bean dependency between SecretServiceImpl <-> Vault writers.)
-    SecretEntity secret = request.toEntity();
-    Instant now = Instant.now();
-    secret.setCreatedAt(now);
-    secret.setUpdatedAt(now);
-    secret.setValue(cryptoService.encrypt(secret.getValue()));
-    secretRepository.save(secret);
-    log.info("Stored secret '{}' in DB vault", request.getName());
+    public SecretEntity store(SecretDto request) {
+        try {
+            SecretEntity secret = request.toEntity();
+            Instant now = Instant.now();
+            secret.setCreatedAt(now);
+            secret.setUpdatedAt(now);
+            secret.setValue(cryptoService.encrypt(secret.getValue()));
+            SecretEntity saved = secretRepository.save(secret);
+            log.info("Stored secret '{}' in DB vault", request.getName());
+            return saved;
+        } catch (Exception ex) {
+            log.error("Failed to store secret '{}' in DB vault", request.getName(), ex);
+            throw new RuntimeException("Failed to store secret in DB", ex);
+        }
     }
 }

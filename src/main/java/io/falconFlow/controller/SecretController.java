@@ -33,23 +33,31 @@ public class SecretController {
         this.secretServiceImpl = secretServiceImpl;
     }
 
+    /**
+     * Create a secret in the specified vault.
+     * 
+     * Request body:
+     * {
+     *   "name": "my-secret",
+     *   "type": "apikey",
+     *   "value": "secret-value",
+     *   "metadata": "optional metadata",
+     *   "vaultType": "DB" | "AZURE" | "GCP"  (default: "DB")
+     * }
+     * 
+     * Response: Same SecretEntity format for all vault types.
+     * For external vaults (AZURE/GCP), a placeholder entity is returned
+     * since they don't store in local DB.
+     */
     @PostMapping
-    public ResponseEntity<?> create(@RequestBody SecretDto request) {
+    public ResponseEntity<SecretEntity> create(@RequestBody SecretDto request) {
         String vaultType = (request == null) ? "DB" : request.getVaultTypeOrDefault();
         if (!ALLOWED_VAULT_TYPES.contains(vaultType)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid vaultType. Allowed: DB, AZURE, GCP");
         }
 
-        // Common success response across vaults.
-        // - DB: reuse existing DB flow
-        // - AZURE/GCP: bypass DB and store in external vault
-        if ("DB".equals(vaultType)) {
-            SecretEntity created = secretService.create(request.toEntity());
-            return ResponseEntity.created(URI.create("/api/secrets/" + created.getId())).body(created);
-        }
-
-        secretServiceImpl.storeByVaultType(request);
-        return ResponseEntity.ok().build();
+        SecretEntity result = secretServiceImpl.storeByVaultType(request);
+        return ResponseEntity.created(URI.create("/api/secrets/" + result.getId())).body(result);
     }
 
     @GetMapping("/{id}")

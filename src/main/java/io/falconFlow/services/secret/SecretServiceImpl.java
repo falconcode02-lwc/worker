@@ -64,28 +64,22 @@ public class SecretServiceImpl implements SecretService {
 
     /**
      * New entry point used by controller when vaultType support is enabled.
+     * Returns SecretEntity for consistent response format (no frontend change).
      */
-    public void storeByVaultType(SecretDto dto) {
+    public SecretEntity storeByVaultType(SecretDto dto) {
         String vaultType = (dto == null) ? "DB" : dto.getVaultTypeOrDefault();
-
-        // DB path must reuse the existing DB flow.
-        if ("DB".equals(vaultType)) {
-            createInDatabase(dto.toEntity());
-            return;
-        }
-
         VaultWriter writer = resolveWriter(vaultType);
-        writer.store(dto);
+        return writer.store(dto);
     }
 
     private VaultWriter resolveWriter(String vaultType) {
         String key = (vaultType == null) ? "DB" : vaultType.trim().toUpperCase(Locale.ROOT);
         if (!StringUtils.hasText(key)) key = "DB";
 
-    // Map external API values to internal Spring bean names (avoid collisions like bean name 'DB').
-    if ("DB".equals(key)) key = "VAULT_DB";
-    else if ("AZURE".equals(key)) key = "VAULT_AZURE";
-    else if ("GCP".equals(key)) key = "VAULT_GCP";
+        // Map external API values to internal Spring bean names
+        if ("DB".equals(key)) key = "VAULT_DB";
+        else if ("AZURE".equals(key)) key = "VAULT_AZURE";
+        else if ("GCP".equals(key)) key = "VAULT_GCP";
 
         if (vaultWriters == null) {
             throw new IllegalStateException("Vault writers are not configured");

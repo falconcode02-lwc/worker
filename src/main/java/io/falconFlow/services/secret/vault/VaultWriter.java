@@ -1,5 +1,6 @@
 package io.falconFlow.services.secret.vault;
 
+import io.falconFlow.entity.SecretEntity;
 import io.falconFlow.services.secret.SecretDto;
 
 /**
@@ -8,7 +9,8 @@ import io.falconFlow.services.secret.SecretDto;
  * Contract:
  * - Implementations must not log secret values.
  * - Implementations should throw a RuntimeException (or a domain exception) on failure.
+ * - All implementations return SecretEntity for consistent API response.
  */
 public interface VaultWriter {
-    void store(SecretDto request);
+    SecretEntity store(SecretDto request);
 }
