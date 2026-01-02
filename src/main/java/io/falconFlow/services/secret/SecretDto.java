@@ -27,7 +27,7 @@ public class SecretDto {
         d.type = e.getType();
         d.value = e.getValue();
         d.metadata = e.getMetadata();
-    d.vaultType = "DB";
+        d.vaultType = e.getVaultType() != null ? e.getVaultType() : "DB";
         d.createdAt = e.getCreatedAt();
         d.updatedAt = e.getUpdatedAt();
         return d;

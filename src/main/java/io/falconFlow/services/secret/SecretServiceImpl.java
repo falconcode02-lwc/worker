@@ -161,6 +161,7 @@ public class SecretServiceImpl implements SecretService {
             copy.setId(e.getId());
             copy.setName(e.getName());
             copy.setType(e.getType());
+            copy.setVaultType(e.getVaultType());
             copy.setMetadata(e.getMetadata());
             copy.setCreatedAt(e.getCreatedAt());
             copy.setUpdatedAt(e.getUpdatedAt());
