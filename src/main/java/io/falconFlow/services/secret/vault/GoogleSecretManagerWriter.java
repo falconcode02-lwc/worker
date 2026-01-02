@@ -2,6 +2,8 @@ package io.falconFlow.services.secret.vault;
 
 import com.google.api.gax.core.FixedCredentialsProvider;
 import com.google.auth.oauth2.GoogleCredentials;
+import com.google.cloud.secretmanager.v1.AccessSecretVersionRequest;
+import com.google.cloud.secretmanager.v1.AccessSecretVersionResponse;
 import com.google.cloud.secretmanager.v1.AddSecretVersionRequest;
 import com.google.cloud.secretmanager.v1.ProjectName;
 import com.google.cloud.secretmanager.v1.Secret;
@@ -10,9 +12,11 @@ import com.google.cloud.secretmanager.v1.SecretManagerServiceSettings;
 import com.google.cloud.secretmanager.v1.SecretName;
 import com.google.cloud.secretmanager.v1.SecretPayload;
 import com.google.cloud.secretmanager.v1.SecretVersion;
+import com.google.cloud.secretmanager.v1.SecretVersionName;
 import com.google.cloud.secretmanager.v1.Replication;
 import com.google.protobuf.ByteString;
 import io.falconFlow.entity.SecretEntity;
+import io.falconFlow.repository.SecretRepository;
 import io.falconFlow.services.secret.SecretDto;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -23,18 +27,20 @@ import java.io.FileInputStream;
 import java.time.Instant;
 
 /**
- * Stores secrets in Google Secret Manager.
+ * Stores and reads secrets from Google Secret Manager.
  * Returns SecretEntity for consistent API response (same format as DB).
  */
 @Component("VAULT_GCP")
-public class GoogleSecretManagerWriter implements VaultWriter {
+public class GoogleSecretManagerWriter implements VaultWriter, VaultReader {
 
     private static final Logger log = LoggerFactory.getLogger(GoogleSecretManagerWriter.class);
 
     private final GoogleSecretManagerProperties props;
+    private final SecretRepository secretRepository;
 
-    public GoogleSecretManagerWriter(GoogleSecretManagerProperties props) {
+    public GoogleSecretManagerWriter(GoogleSecretManagerProperties props, SecretRepository secretRepository) {
         this.props = props;
+        this.secretRepository = secretRepository;
     }
 
     @Override
@@ -73,8 +79,8 @@ public class GoogleSecretManagerWriter implements VaultWriter {
             String versionName = version.getName();
             log.info("Stored secret '{}' in Google Secret Manager (version={})", secretId, versionName);
             
-            // Return SecretEntity for consistent response format
-            return buildResponseEntity(request, versionName);
+            // Also save reference in DB so we can track it
+            return saveReferenceInDb(request, versionName);
         } catch (Exception ex) {
             log.error("Google Secret Manager store failed for secret '{}'", safeName(request), ex);
             throw new RuntimeException("Failed to store secret in Google Secret Manager", ex);
@@ -82,18 +88,39 @@ public class GoogleSecretManagerWriter implements VaultWriter {
     }
 
     /**
-     * Build a SecretEntity response for GCP vault.
-     * Note: Value is NOT returned (security).
+     * Save a reference in DB pointing to GCP Secret Manager.
+     * Value stored is the version reference, not actual secret.
      */
-    private SecretEntity buildResponseEntity(SecretDto request, String versionName) {
+    private SecretEntity saveReferenceInDb(SecretDto request, String versionName) {
         SecretEntity entity = new SecretEntity();
         entity.setName(request.getName());
         entity.setType(request.getType());
-        entity.setValue("[STORED IN GCP SECRET MANAGER]"); // Don't expose actual value
+        entity.setVaultType("GCP");
+        entity.setValue("gcp-sm:" + versionName); // Reference, not actual value
         entity.setMetadata(request.getMetadata());
         entity.setCreatedAt(Instant.now());
         entity.setUpdatedAt(Instant.now());
-        return entity;
+        return secretRepository.save(entity);
+    }
+
+    @Override
+    public String readSecret(String secretName) {
+        try (SecretManagerServiceClient client = buildClient()) {
+            String projectId = props.getProjectId();
+            // Access the latest version
+            SecretVersionName versionName = SecretVersionName.of(projectId, secretName, "latest");
+            AccessSecretVersionResponse response = client.accessSecretVersion(versionName);
+            log.info("Retrieved secret '{}' from Google Secret Manager", secretName);
+            return response.getPayload().getData().toStringUtf8();
+        } catch (Exception ex) {
+            log.error("Failed to read secret '{}' from Google Secret Manager", secretName, ex);
+            throw new RuntimeException("Failed to read secret from Google Secret Manager: " + secretName, ex);
+        }
+    }
+
+    @Override
+    public boolean supports(String vaultType) {
+        return "GCP".equalsIgnoreCase(vaultType);
     }
 
     private SecretManagerServiceClient buildClient() throws Exception {

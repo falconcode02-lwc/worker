@@ -6,6 +6,7 @@ import com.azure.security.keyvault.secrets.SecretClient;
 import com.azure.security.keyvault.secrets.SecretClientBuilder;
 import com.azure.security.keyvault.secrets.models.KeyVaultSecret;
 import io.falconFlow.entity.SecretEntity;
+import io.falconFlow.repository.SecretRepository;
 import io.falconFlow.services.secret.SecretDto;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -15,18 +16,20 @@ import org.springframework.util.StringUtils;
 import java.time.Instant;
 
 /**
- * Stores secrets in Azure Key Vault.
+ * Stores and reads secrets from Azure Key Vault.
  * Returns SecretEntity for consistent API response (same format as DB).
  */
 @Component("VAULT_AZURE")
-public class AzureKeyVaultWriter implements VaultWriter {
+public class AzureKeyVaultWriter implements VaultWriter, VaultReader {
 
     private static final Logger log = LoggerFactory.getLogger(AzureKeyVaultWriter.class);
 
     private final AzureKeyVaultProperties props;
+    private final SecretRepository secretRepository;
 
-    public AzureKeyVaultWriter(AzureKeyVaultProperties props) {
+    public AzureKeyVaultWriter(AzureKeyVaultProperties props, SecretRepository secretRepository) {
         this.props = props;
+        this.secretRepository = secretRepository;
     }
 
     @Override
@@ -39,8 +42,9 @@ public class AzureKeyVaultWriter implements VaultWriter {
             String version = saved.getProperties().getVersion();
             log.info("Stored secret '{}' in Azure Key Vault (version={})", request.getName(), version);
             
-            // Return SecretEntity for consistent response format
-            return buildResponseEntity(request, version);
+            // Also save reference in DB so we can track it
+            SecretEntity entity = saveReferenceInDb(request, version);
+            return entity;
         } catch (Exception ex) {
             log.error("Azure Key Vault store failed for secret '{}'", safeName(request), ex);
             throw new RuntimeException("Failed to store secret in Azure Key Vault", ex);
@@ -48,18 +52,37 @@ public class AzureKeyVaultWriter implements VaultWriter {
     }
 
     /**
-     * Build a SecretEntity response for Azure vault.
-     * Note: Value is NOT returned (security), id is the Azure version.
+     * Save a reference in DB pointing to Azure Key Vault.
+     * Value stored is the version reference, not actual secret.
      */
-    private SecretEntity buildResponseEntity(SecretDto request, String version) {
+    private SecretEntity saveReferenceInDb(SecretDto request, String version) {
         SecretEntity entity = new SecretEntity();
         entity.setName(request.getName());
         entity.setType(request.getType());
-        entity.setValue("[STORED IN AZURE KEY VAULT]"); // Don't expose actual value
+        entity.setVaultType("AZURE");
+        entity.setValue("azure-kv:" + version); // Reference, not actual value
         entity.setMetadata(request.getMetadata());
         entity.setCreatedAt(Instant.now());
         entity.setUpdatedAt(Instant.now());
-        return entity;
+        return secretRepository.save(entity);
+    }
+
+    @Override
+    public String readSecret(String secretName) {
+        try {
+            SecretClient client = buildClient();
+            KeyVaultSecret secret = client.getSecret(secretName);
+            log.info("Retrieved secret '{}' from Azure Key Vault", secretName);
+            return secret.getValue();
+        } catch (Exception ex) {
+            log.error("Failed to read secret '{}' from Azure Key Vault", secretName, ex);
+            throw new RuntimeException("Failed to read secret from Azure Key Vault: " + secretName, ex);
+        }
+    }
+
+    @Override
+    public boolean supports(String vaultType) {
+        return "AZURE".equalsIgnoreCase(vaultType);
     }
 
     private SecretClient buildClient() {

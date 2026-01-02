@@ -8,6 +8,7 @@ import io.falconFlow.entity.SecretEntity;
 import io.falconFlow.model.PluginSecretModel;
 import io.falconFlow.repository.SecretRepository;
 import io.falconFlow.services.isolateservices.PluginManagerService;
+import io.falconFlow.services.secret.vault.VaultReader;
 import io.falconFlow.services.secret.vault.VaultWriter;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.annotation.CacheEvict;
@@ -30,6 +31,7 @@ public class SecretServiceImpl implements SecretService {
     private final SecretRepository secretRepository;
     private final CryptoService cryptoService;
     private final Map<String, VaultWriter> vaultWriters;
+    private final List<VaultReader> vaultReaders;
 
     @Autowired
     ObjectMapper mapper;
@@ -42,11 +44,13 @@ public class SecretServiceImpl implements SecretService {
     public SecretServiceImpl(
             SecretRepository secretRepository,
             CryptoService cryptoService,
-            Map<String, VaultWriter> vaultWriters
+            Map<String, VaultWriter> vaultWriters,
+            List<VaultReader> vaultReaders
     ) {
         this.secretRepository = secretRepository;
         this.cryptoService = cryptoService;
         this.vaultWriters = vaultWriters;
+        this.vaultReaders = vaultReaders;
     }
 
     /**
@@ -119,15 +123,31 @@ public class SecretServiceImpl implements SecretService {
         Optional<SecretEntity> opt = secretRepository.findById(id);
         if (opt.isPresent()) {
             SecretEntity e = opt.get();
-            // decrypt value before returning
+            String vaultType = e.getVaultType();
+            if (vaultType == null) vaultType = "DB"; // backward compatibility
+            
             try {
-                e.setValue(cryptoService.decrypt(e.getValue()));
+                // Find appropriate reader and fetch actual value
+                VaultReader reader = findReader(vaultType);
+                String actualValue = reader.readSecret(e.getName());
+                e.setValue(actualValue);
             } catch (Exception ex) {
-                // if decryption fails, throw a runtime exception to surface the error
-                throw new RuntimeException("Failed to decrypt secret value", ex);
+                throw new RuntimeException("Failed to read secret from vault: " + vaultType, ex);
             }
         }
         return opt;
+    }
+
+    /**
+     * Find the appropriate VaultReader for the given vault type.
+     */
+    private VaultReader findReader(String vaultType) {
+        for (VaultReader reader : vaultReaders) {
+            if (reader.supports(vaultType)) {
+                return reader;
+            }
+        }
+        throw new IllegalArgumentException("No reader found for vault type: " + vaultType);
     }
 
 
