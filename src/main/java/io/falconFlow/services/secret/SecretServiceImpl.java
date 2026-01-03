@@ -183,19 +183,43 @@ public class SecretServiceImpl implements SecretService {
 
     @Override
     public List<SecretEntity> list() {
+        log.info("========== LIST SECRETS START ==========");
+        
+        List<SecretEntity> allSecrets = secretRepository.findAll();
+        log.info("Found {} secrets in database", allSecrets.size());
+        
         // Do not return decrypted values in lists — mask them for safety
-        return secretRepository.findAll().stream().map(e -> {
+        List<SecretEntity> result = allSecrets.stream().map(e -> {
+            String vaultType = e.getVaultType();
+            if (vaultType == null || vaultType.isEmpty()) vaultType = "DB";
+            
+            log.info("Secret [id={}, name='{}', type='{}', vaultType='{}']", 
+                    e.getId(), e.getName(), e.getType(), vaultType);
+            log.info("  - DB stored value (encrypted/reference): {}", e.getValue());
+            
+            // Try to read actual value from vault for logging
+            try {
+                VaultReader reader = findReader(vaultType);
+                String actualValue = reader.readSecret(e.getName());
+                log.info("  - Actual value from {} vault: {}", vaultType, actualValue);
+            } catch (Exception ex) {
+                log.warn("  - Could not read actual value from {} vault: {}", vaultType, ex.getMessage());
+            }
+            
             SecretEntity copy = new SecretEntity();
             copy.setId(e.getId());
             copy.setName(e.getName());
             copy.setType(e.getType());
-            copy.setVaultType(e.getVaultType());
+            copy.setVaultType(vaultType);
             copy.setMetadata(e.getMetadata());
             copy.setCreatedAt(e.getCreatedAt());
             copy.setUpdatedAt(e.getUpdatedAt());
-            // value intentionally omitted
+            // value intentionally omitted from response
             return copy;
         }).collect(Collectors.toList());
+        
+        log.info("========== LIST SECRETS END ==========");
+        return result;
     }
 
     @Override
