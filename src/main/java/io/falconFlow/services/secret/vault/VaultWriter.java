@@ -13,4 +13,15 @@ import io.falconFlow.services.secret.SecretDto;
  */
 public interface VaultWriter {
     SecretEntity store(SecretDto request);
+    
+    /**
+     * Delete a secret from the vault.
+     * @param secretName the name of the secret to delete
+     */
+    void delete(String secretName);
+    
+    /**
+     * Check if this writer supports the given vault type.
+     */
+    boolean supports(String vaultType);
 }

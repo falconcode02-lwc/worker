@@ -38,6 +38,11 @@ public class AzureKeyVaultWriter implements VaultWriter, VaultReader {
     public SecretEntity store(SecretDto request) {
         validate(request);
 
+        // Check for duplicate in DB
+        if (secretRepository.findByName(request.getName()).isPresent()) {
+            throw new IllegalArgumentException("Secret with name '" + request.getName() + "' already exists");
+        }
+
         try {
             SecretClient client = buildClient();
             KeyVaultSecret saved = client.setSecret(request.getName(), request.getValue());
@@ -83,6 +88,25 @@ public class AzureKeyVaultWriter implements VaultWriter, VaultReader {
     }
 
     @Override
+    public void delete(String secretName) {
+        try {
+            SecretClient client = buildClient();
+            // Start the delete operation
+            client.beginDeleteSecret(secretName).waitForCompletion();
+            log.info("Deleted secret '{}' from Azure Key Vault", secretName);
+            
+            // Also delete from DB reference
+            secretRepository.findByName(secretName).ifPresent(entity -> {
+                secretRepository.delete(entity);
+                log.info("Deleted DB reference for secret '{}'", secretName);
+            });
+        } catch (Exception ex) {
+            log.error("Failed to delete secret '{}' from Azure Key Vault", secretName, ex);
+            throw new RuntimeException("Failed to delete secret from Azure Key Vault: " + secretName, ex);
+        }
+    }
+
+    @Override
     public boolean supports(String vaultType) {
         return "AZURE".equalsIgnoreCase(vaultType);
     }
@@ -91,6 +115,8 @@ public class AzureKeyVaultWriter implements VaultWriter, VaultReader {
         if (!StringUtils.hasText(props.getVaultUrl())) {
             throw new IllegalStateException("vault.azure.vault-url is not configured");
         }
+
+        log.info("Building Azure Key Vault client for vault: {}", props.getVaultUrl());
 
         ClientSecretCredential credential = new ClientSecretCredentialBuilder()
                 .tenantId(props.getTenantId())

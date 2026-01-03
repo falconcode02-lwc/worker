@@ -242,7 +242,40 @@ public class SecretServiceImpl implements SecretService {
     @CacheEvict(value = CacheConfig.SECRETS_CACHE, allEntries = true)
     @Override
     public void delete(Long id) {
-        secretRepository.deleteById(id);
+        log.info("========== DELETE SECRET START ==========");
+        log.info("Deleting secret with id: {}", id);
+        
+        Optional<SecretEntity> opt = secretRepository.findById(id);
+        if (opt.isEmpty()) {
+            log.warn("Secret with id {} not found for deletion", id);
+            throw new RuntimeException("Secret not found: " + id);
+        }
+        
+        SecretEntity entity = opt.get();
+        String vaultType = entity.getVaultType();
+        if (vaultType == null) vaultType = "DB";
+        
+        log.info("Secret found - Name: {}, VaultType: {}", entity.getName(), vaultType);
+        
+        // Find the appropriate writer and delete
+        VaultWriter writer = findWriter(vaultType);
+        log.info("Using writer: {} for deletion", writer.getClass().getSimpleName());
+        
+        writer.delete(entity.getName());
+        
+        log.info("========== DELETE SECRET END ==========");
+    }
+
+    /**
+     * Find the appropriate VaultWriter for the given vault type.
+     */
+    private VaultWriter findWriter(String vaultType) {
+        for (VaultWriter writer : vaultWriters.values()) {
+            if (writer.supports(vaultType)) {
+                return writer;
+            }
+        }
+        throw new IllegalArgumentException("No writer found for vault type: " + vaultType);
     }
 
     @Cacheable(value = CacheConfig.SECRETS_CACHE, key = "'name:' + #name")

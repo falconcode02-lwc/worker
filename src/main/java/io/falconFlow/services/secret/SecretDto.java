@@ -1,7 +1,8 @@
 package io.falconFlow.services.secret;
 
-import io.falconFlow.entity.SecretEntity;
 import java.time.Instant;
+
+import io.falconFlow.entity.SecretEntity;
 
 public class SecretDto {
     private Long id;
@@ -27,7 +28,7 @@ public class SecretDto {
         d.type = e.getType();
         d.value = e.getValue();
         d.metadata = e.getMetadata();
-        d.vaultType = e.getVaultType() != null ? e.getVaultType() : "DB";
+        d.vaultType = e.getVaultType();
         d.createdAt = e.getCreatedAt();
         d.updatedAt = e.getUpdatedAt();
         return d;

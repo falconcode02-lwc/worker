@@ -31,6 +31,11 @@ public class DatabaseVaultWriter implements VaultWriter, VaultReader {
 
     @Override
     public SecretEntity store(SecretDto request) {
+        // Check for duplicate
+        if (secretRepository.findByName(request.getName()).isPresent()) {
+            throw new IllegalArgumentException("Secret with name '" + request.getName() + "' already exists");
+        }
+        
         try {
             SecretEntity secret = request.toEntity();
             Instant now = Instant.now();
@@ -55,6 +60,17 @@ public class DatabaseVaultWriter implements VaultWriter, VaultReader {
             return cryptoService.decrypt(encryptedValue);
         }
         throw new RuntimeException("Secret not found in DB: " + secretName);
+    }
+
+    @Override
+    public void delete(String secretName) {
+        Optional<SecretEntity> opt = secretRepository.findByName(secretName);
+        if (opt.isPresent()) {
+            secretRepository.delete(opt.get());
+            log.info("Deleted secret '{}' from DB vault", secretName);
+        } else {
+            log.warn("Secret '{}' not found in DB vault for deletion", secretName);
+        }
     }
 
     @Override

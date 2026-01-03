@@ -48,6 +48,11 @@ public class GoogleSecretManagerWriter implements VaultWriter, VaultReader {
     public SecretEntity store(SecretDto request) {
         validate(request);
 
+        // Check for duplicate in DB
+        if (secretRepository.findByName(request.getName()).isPresent()) {
+            throw new IllegalArgumentException("Secret with name '" + request.getName() + "' already exists");
+        }
+
         try (SecretManagerServiceClient client = buildClient()) {
             String projectId = props.getProjectId();
             String secretId = request.getName();
@@ -116,6 +121,25 @@ public class GoogleSecretManagerWriter implements VaultWriter, VaultReader {
         } catch (Exception ex) {
             log.error("Failed to read secret '{}' from Google Secret Manager", secretName, ex);
             throw new RuntimeException("Failed to read secret from Google Secret Manager: " + secretName, ex);
+        }
+    }
+
+    @Override
+    public void delete(String secretName) {
+        try (SecretManagerServiceClient client = buildClient()) {
+            String projectId = props.getProjectId();
+            SecretName name = SecretName.of(projectId, secretName);
+            client.deleteSecret(name);
+            log.info("Deleted secret '{}' from Google Secret Manager", secretName);
+            
+            // Also delete from DB reference
+            secretRepository.findByName(secretName).ifPresent(entity -> {
+                secretRepository.delete(entity);
+                log.info("Deleted DB reference for secret '{}'", secretName);
+            });
+        } catch (Exception ex) {
+            log.error("Failed to delete secret '{}' from Google Secret Manager", secretName, ex);
+            throw new RuntimeException("Failed to delete secret from Google Secret Manager: " + secretName, ex);
         }
     }
 
