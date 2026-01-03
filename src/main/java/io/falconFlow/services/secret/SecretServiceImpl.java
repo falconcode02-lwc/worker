@@ -7,6 +7,8 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.CachePut;
@@ -29,6 +31,7 @@ import io.falconFlow.services.secret.vault.VaultWriter;
 @Service
 public class SecretServiceImpl implements SecretService {
 
+    private static final Logger log = LoggerFactory.getLogger(SecretServiceImpl.class);
 
     private final SecretRepository secretRepository;
     private final CryptoService cryptoService;
@@ -122,21 +125,46 @@ public class SecretServiceImpl implements SecretService {
     @Cacheable(value = CacheConfig.SECRETS_CACHE, key = "#id")
     @Override
     public Optional<SecretEntity> get(Long id) {
+        log.info("========== GET SECRET START ==========");
+        log.info("Fetching secret with id: {}", id);
+        
         Optional<SecretEntity> opt = secretRepository.findById(id);
         if (opt.isPresent()) {
             SecretEntity e = opt.get();
             String vaultType = e.getVaultType();
             if (vaultType == null) vaultType = "DB"; // backward compatibility
             
+            log.info("Secret found in DB:");
+            log.info("  - ID: {}", e.getId());
+            log.info("  - Name: {}", e.getName());
+            log.info("  - Type: {}", e.getType());
+            log.info("  - VaultType: {}", vaultType);
+            log.info("  - Value from DB (reference/encrypted): {}", e.getValue());
+            log.info("  - Metadata: {}", e.getMetadata());
+            log.info("  - CreatedAt: {}", e.getCreatedAt());
+            log.info("  - UpdatedAt: {}", e.getUpdatedAt());
+            
             try {
                 // Find appropriate reader and fetch actual value
+                log.info("Finding VaultReader for vaultType: {}", vaultType);
                 VaultReader reader = findReader(vaultType);
+                log.info("Using reader: {}", reader.getClass().getSimpleName());
+                
+                log.info("Calling readSecret('{}') from {} vault...", e.getName(), vaultType);
                 String actualValue = reader.readSecret(e.getName());
+                log.info("Actual value retrieved from {} vault: {}", vaultType, actualValue);
+                
                 e.setValue(actualValue);
+                log.info("Final response value set to: {}", actualValue);
             } catch (Exception ex) {
+                log.error("Failed to read secret from vault: {}", vaultType, ex);
                 throw new RuntimeException("Failed to read secret from vault: " + vaultType, ex);
             }
+        } else {
+            log.info("Secret with id {} not found in DB", id);
         }
+        
+        log.info("========== GET SECRET END ==========");
         return opt;
     }
 
@@ -161,7 +189,6 @@ public class SecretServiceImpl implements SecretService {
             copy.setId(e.getId());
             copy.setName(e.getName());
             copy.setType(e.getType());
-            copy.setVaultType(e.getVaultType());
             copy.setMetadata(e.getMetadata());
             copy.setCreatedAt(e.getCreatedAt());
             copy.setUpdatedAt(e.getUpdatedAt());
