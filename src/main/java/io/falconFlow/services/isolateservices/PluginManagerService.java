@@ -3,27 +3,38 @@ package io.falconFlow.services.isolateservices;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.falconFlow.entity.PluginEntity;
+import io.falconFlow.interfaces.FParam;
+import io.falconFlow.interfaces.FResource;
+import io.falconFlow.interfaces.MCPToolRegistry;
+import io.falconFlow.model.MCPToolDefinition;
+import io.falconFlow.model.PluginMethodModel;
 import io.falconFlow.model.PluginSecretModel;
 import io.falconFlow.repository.PluginRepository;
+import org.springframework.aop.support.AopUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.ApplicationContext;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.Base64;
-import java.util.List;
-import java.util.Optional;
+import java.lang.reflect.Method;
+import java.lang.reflect.Parameter;
+import java.util.*;
 
 @Service
 public class PluginManagerService {
 
+    @Autowired
+    private ApplicationContext context;
 	private final PluginRepository pluginRepository;
+    private final MCPToolRegistry registry;
 
     @Autowired
     ObjectMapper mapper;
 
 	@Autowired
-	public PluginManagerService(PluginRepository pluginRepository) {
+	public PluginManagerService(PluginRepository pluginRepository, MCPToolRegistry registry) {
 		this.pluginRepository = pluginRepository;
+        this.registry = registry;
 	}
 
 	public java.util.List<PluginDto> listAll() {
@@ -86,6 +97,25 @@ public class PluginManagerService {
 	}
 
 
+    @Transactional
+    public PluginDto register(PluginDto pluginDto, Object bean) {
+        if (bean == null) throw new IllegalArgumentException("Bean cannot be null");
+
+        String resources = scanAndRegisterTools(bean);
+        // Derive pluginId from the actual bean class
+        String pluginId = AopUtils.getTargetClass(bean).getSimpleName();
+        pluginDto.setResources(resources);
+        pluginDto.setPluginId(pluginId);
+        
+        // Call the string-based register to handle DB persistence
+        PluginDto saved = register(pluginDto, pluginId);
+        
+        // Scan tools directly on the instance (bypassing context lookup issues)
+
+        
+        return saved;
+    }
+
 	/**
 	 * Register a plugin (DTO) and trigger its onload handler once per process lifetime.
 	 * The incoming PluginDto may contain version and rawClass/rawProcessClass.
@@ -119,6 +149,9 @@ public class PluginManagerService {
             if (pluginDto.getVersion() != null) saved.setVersion(pluginDto.getVersion());
             if (pluginDto.getProps() != null) saved.setProps(decodeBase64(pluginDto.getProps()));
             if (pluginDto.getSecrets() != null) saved.setSecrets(decodeBase64(pluginDto.getSecrets()));
+            if (pluginDto.getAiToolDescription() != null) saved.setResources(pluginDto.getResources());
+            saved.setAiTool(pluginDto.isAiTool());
+            if (pluginDto.getResources() != null) saved.setResources(pluginDto.getResources());
             saved.setActive(true);
             saved = pluginRepository.save(saved);
         } else {
@@ -135,6 +168,9 @@ public class PluginManagerService {
 			try { p.setRawProcessClass(pluginDto.getRawProcessClass() == null ? "" : pluginDto.getRawProcessClass()); } catch (Throwable t) { }
             p.setIcon(pluginDto.getIcon());
             p.setVersion(pluginDto.getVersion());
+            p.setAiToolDescription(pluginDto.getAiToolDescription());
+            p.setAiTool(pluginDto.isAiTool());
+            p.setResources(pluginDto.getResources());
             p.setActive(true);
             saved = pluginRepository.save(p);
         }
@@ -144,6 +180,7 @@ public class PluginManagerService {
             saved.setLastLoadedAt(java.time.Instant.now());
             pluginRepository.save(saved);
             // Note: actual invocation of plugin lifecycle (Java code) is out of scope here.
+            // Tool scanning is handled by the Object-based register() overload
         }
 
         return PluginDto.fromEntity(saved);
@@ -180,6 +217,61 @@ public class PluginManagerService {
            }
        }
        return  null;
+    }
+
+    private String scanAndRegisterTools(Object bean) {
+            Class<?> clazz = AopUtils.getTargetClass(bean);
+
+            List<PluginMethodModel> pluginMethodModelList = new ArrayList<>();
+            for (Method method : clazz.getDeclaredMethods()) {
+
+
+                FResource tool = method.getAnnotation(FResource.class);
+                if (tool == null) continue;
+                MCPToolDefinition def = new MCPToolDefinition();
+                def.setName(clazz.getSimpleName() +":"+ method.getName());
+                def.setDescription(tool.descr());
+                def.setMethod(method);
+                def.setBean(clazz.getSimpleName());
+                Map<String, String>  params = resolveSchema(method);
+                def.setInputSchema(params);
+                System.out.println("Name >>>>> " + def.getName());
+                System.out.println("Defination >>>>> " + def.getInputSchema());
+
+
+                // add method details
+                PluginMethodModel pluginMethodModel = new PluginMethodModel();
+                pluginMethodModel.setMethod(def.getMethod().getName());
+                pluginMethodModel.setName(def.getName());
+                pluginMethodModel.setProperties(params);
+                pluginMethodModel.setDisplayName(tool.name());
+                pluginMethodModel.setDescr(tool.descr());
+                pluginMethodModelList.add(pluginMethodModel);
+
+
+
+                registry.register(def);
+            }
+        try {
+            return  mapper.writeValueAsString(pluginMethodModelList);
+        } catch (JsonProcessingException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private Map<String, String> resolveSchema(Method method) {
+        Map<String, String> schema = new LinkedHashMap<>();
+        for (Parameter p : method.getParameters()) {
+            FParam ann = p.getAnnotation(FParam.class);
+            if (ann != null) {
+                schema.put(ann.value(), p.getType().getSimpleName());
+            } else {
+                schema.put(p.getName(), p.getType().getSimpleName());
+            }
+
+
+        }
+        return schema;
     }
 
 }
