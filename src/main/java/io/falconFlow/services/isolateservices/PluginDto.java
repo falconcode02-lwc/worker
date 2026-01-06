@@ -22,7 +22,9 @@ public class PluginDto {
     private boolean active;
     private String version;
     private Instant lastLoadedAt;
-
+    private String aiToolDescription;
+    private boolean aiTool;
+    private String resources;
 
     public PluginDto() {}
 
@@ -34,10 +36,14 @@ public class PluginDto {
         d.setPluginName(e.getPluginName());
         d.setPluginDesc(e.getPluginDesc());
         d.setPluginAuthor(e.getPluginAuthor());
+        d.setAiToolDescription(e.getAiToolDescription());
+        d.setAiTool(e.isAiTool());
         d.setPluginDocument(e.getPluginDocument());
     d.setProps(e.getProps());
         d.setSecrets(e.getSecrets());
     d.setRawClass(e.getRawClass());
+    d.setResources(e.getResources());
+
     // rawProcessClass may be null if not present in entity
     try { d.setRawProcessClass(e.getRawProcessClass()); } catch (Throwable t) { /* ignore */ }
         d.setIcon(e.getIcon());
@@ -57,7 +63,10 @@ public class PluginDto {
         e.setPluginDocument(this.pluginDocument);
         e.setProps(this.props);
         e.setSecrets(this.secrets);
-    e.setRawClass(this.rawClass);
+        e.setRawClass(this.rawClass);
+        e.setAiTool(this.aiTool);
+        e.setAiToolDescription(this.aiToolDescription);
+        e.setResources(this.resources);
     try { e.setRawProcessClass(this.rawProcessClass); } catch (Throwable t) { /* ignore */ }
         e.setIcon(this.icon);
         e.setActive(this.active);
@@ -108,5 +117,27 @@ public class PluginDto {
     public Instant getLastLoadedAt() { return lastLoadedAt; }
     public void setLastLoadedAt(Instant lastLoadedAt) { this.lastLoadedAt = lastLoadedAt; }
 
+    public String getAiToolDescription() {
+        return aiToolDescription;
+    }
 
+    public void setAiToolDescription(String aiToolDescription) {
+        this.aiToolDescription = aiToolDescription;
+    }
+
+    public boolean isAiTool() {
+        return aiTool;
+    }
+
+    public void setAiTool(boolean aiTool) {
+        this.aiTool = aiTool;
+    }
+
+    public String getResources() {
+        return resources;
+    }
+
+    public void setResources(String resources) {
+        this.resources = resources;
+    }
 }

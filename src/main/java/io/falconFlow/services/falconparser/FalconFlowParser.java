@@ -130,7 +130,7 @@ public class FalconFlowParser {
         String args = src.substring(parenStart + 1, i).trim();
 
           // single arg — append second parameter
-          out.append("pluginService.register(").append(args).append(", this.getClass().getSimpleName())");
+          out.append("pluginService.register(").append(args).append(", this)");
 
 
         // advance past the closing paren
