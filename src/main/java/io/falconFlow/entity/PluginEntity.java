@@ -15,24 +15,24 @@ import java.time.Instant;
 
 public class PluginEntity {
 
-        @Id
-        @GeneratedValue(strategy = GenerationType.IDENTITY)
-        private Integer id;
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Integer id;
 
-        @Column(name = "plugin_id", nullable = false, length = 50)
-        private String pluginId;
+    @Column(name = "plugin_id", nullable = false, length = 50)
+    private String pluginId;
 
-        @Column(name = "plugin_name", nullable = false, length = 100)
-        private String pluginName;
+    @Column(name = "plugin_name", nullable = false, length = 100)
+    private String pluginName;
 
-        @Column(name = "plugin_desc", nullable = false, length = 100)
-        private String pluginDesc;
+    @Column(name = "plugin_desc", nullable = false, length = 100)
+    private String pluginDesc;
 
-        @Column(name = "plugin_author", nullable = false, length = 100)
-        private String pluginAuthor;
+    @Column(name = "plugin_author", nullable = false, length = 100)
+    private String pluginAuthor;
 
-        @Column(name = "plugin_document", nullable = false, length = 4000)
-        private String pluginDocument;
+    @Column(name = "plugin_document", nullable = false, length = 4000)
+    private String pluginDocument;
 
     @Column(name = "plugin_category", nullable = true, length = 4000)
     private String pluginCategory;
@@ -53,15 +53,25 @@ public class PluginEntity {
     private String rawClass;
 
     @Lob
+    @Column(name = "resources", nullable = true)
+    @JdbcTypeCode(SqlTypes.LONGVARCHAR)
+    private String resources;
+
+    @Lob
     @Column(name = "rawProcessClass", nullable = false)
     @JdbcTypeCode(SqlTypes.LONGVARCHAR)
     private String rawProcessClass;
 
+    @Lob
+    @Column(name = "icon", nullable = false)
+    @JdbcTypeCode(SqlTypes.LONGVARCHAR)
+    private String icon;
 
-        @Lob
-        @Column(name = "icon", nullable = false)
-        @JdbcTypeCode(SqlTypes.LONGVARCHAR)
-        private String icon;
+    @Column(name = "aiToolDescription", nullable = true, length = 1000)
+    private String aiToolDescription;
+
+    @Column(name = "is_aitool", nullable = false)
+    private boolean isAiTool = false;
 
     @Column(name = "is_active", nullable = false)
     private boolean active = true;
@@ -128,6 +138,30 @@ public class PluginEntity {
 
     public void setSecrets(String secrets) {
         this.secrets = secrets;
+    }
+
+    public boolean isAiTool() {
+        return isAiTool;
+    }
+
+    public void setAiTool(boolean aiTool) {
+        isAiTool = aiTool;
+    }
+
+    public String getAiToolDescription() {
+        return aiToolDescription;
+    }
+
+    public void setAiToolDescription(String aiToolDescription) {
+        this.aiToolDescription = aiToolDescription;
+    }
+
+    public String getResources() {
+        return resources;
+    }
+
+    public void setResources(String resources) {
+        this.resources = resources;
     }
 }
 
