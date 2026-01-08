@@ -196,15 +196,10 @@ public class SecretServiceImpl implements SecretService {
             log.info("Secret [id={}, name='{}', type='{}', vaultType='{}']", 
                     e.getId(), e.getName(), e.getType(), vaultType);
             log.info("  - DB stored value (encrypted/reference): {}", e.getValue());
-            
-            // Try to read actual value from vault for logging
-            try {
-                VaultReader reader = findReader(vaultType);
-                String actualValue = reader.readSecret(e.getName());
-                log.info("  - Actual value from {} vault: {}", vaultType, actualValue);
-            } catch (Exception ex) {
-                log.warn("  - Could not read actual value from {} vault: {}", vaultType, ex.getMessage());
-            }
+
+            // Do not attempt to fetch/resolve actual vault values during list.
+            // This endpoint is called frequently by UI and should not trigger external calls.
+            // (Also prevents noisy logs / auth failures when AZURE/GCP aren't configured locally.)
             
             SecretEntity copy = new SecretEntity();
             copy.setId(e.getId());
@@ -229,26 +224,47 @@ public class SecretServiceImpl implements SecretService {
         List<PluginSecretModel.Fields> s = psm.getFields().stream().filter(d->d.getType().equals("password")).toList();
 
 
-        List<SecretEntity> ett =  secretRepository.findByType(type);
+        List<SecretEntity> ett = secretRepository.findByType(type);
         for (SecretEntity et : ett) {
-            String getDecreptedValues = this.getDecreptedValue(et.getValue());
-            try {
-                Map mp =  mapper.readValue(getDecreptedValues, new TypeReference<Map<String, Object>>() {});
-                System.out.println(mp);
-               for (PluginSecretModel.Fields fld : s){
-                   System.out.println(fld);
-                   mp.put(fld.getId(), "*********************");
-               }
-                et.setValue(mapper.writeValueAsString(mp));
-            } catch (JsonProcessingException e) {
-                throw new RuntimeException(e);
+            String vaultType = et.getVaultType();
+            if (!StringUtils.hasText(vaultType)) vaultType = "DB";
+
+            // IMPORTANT:
+            // - DB vault stores an AES-encrypted JSON blob in `value`.
+            // - AZURE/GCP vault types may store a reference like `azure-kv:<id>`.
+            // Trying to AES-decrypt such references causes Illegal base64 character errors.
+            if (!"DB".equalsIgnoreCase(vaultType)) {
+                // For non-DB vault types, return a masked placeholder (no external vault read).
+                // UI only needs to know the credential exists; actual read happens via GET /api/secrets/{id}.
+                et.setValue("*********************");
+                continue;
             }
 
+            String decrypted;
+            try {
+                decrypted = this.getDecreptedValue(et.getValue());
+            } catch (RuntimeException ex) {
+                // Fail-soft: one bad row should not break the whole list.
+                log.warn("Failed to decrypt secret value for id={} (type={}, vaultType={}). Returning masked value.",
+                        et.getId(), et.getType(), vaultType, ex);
+                et.setValue("*********************");
+                continue;
+            }
 
-
+            try {
+                Map<String, Object> mp = mapper.readValue(decrypted, new TypeReference<Map<String, Object>>() {});
+                for (PluginSecretModel.Fields fld : s) {
+                    mp.put(fld.getId(), "*********************");
+                }
+                et.setValue(mapper.writeValueAsString(mp));
+            } catch (JsonProcessingException e) {
+                // Same idea: fail-soft and mask.
+                log.warn("Failed to parse decrypted secret JSON for id={} (type={}, vaultType={}). Returning masked value.",
+                        et.getId(), et.getType(), vaultType, e);
+                et.setValue("*********************");
+            }
         }
 
-        System.out.println(ett);
         return ett;
     }
 
@@ -309,7 +325,25 @@ public class SecretServiceImpl implements SecretService {
         Optional<SecretEntity> opt = secretRepository.findByName(name);
         if (opt.isPresent()) {
             SecretEntity e = opt.get();
-            e.setValue(cryptoService.decrypt(e.getValue()));
+            String vaultType = e.getVaultType();
+            if (!StringUtils.hasText(vaultType)) vaultType = "DB";
+
+            // DB secrets are stored AES-encrypted in ff_secrets.value
+            if ("DB".equalsIgnoreCase(vaultType)) {
+                e.setValue(cryptoService.decrypt(e.getValue()));
+                return opt;
+            }
+
+            // Non-DB (AZURE/GCP) secrets store a reference in ff_secrets.value.
+            // For runtime use, resolve the actual secret from the configured vault.
+            try {
+                VaultReader reader = findReader(vaultType);
+                String actualValue = reader.readSecret(e.getName());
+                e.setValue(actualValue);
+            } catch (Exception ex) {
+                log.error("Failed to resolve secret '{}' from vaultType={}", name, vaultType, ex);
+                throw new RuntimeException("Failed to read secret from vault: " + vaultType, ex);
+            }
         }
         return opt;
     }
