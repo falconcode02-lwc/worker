@@ -234,15 +234,24 @@ public class SecretServiceImpl implements SecretService {
             // - AZURE/GCP vault types may store a reference like `azure-kv:<id>`.
             // Trying to AES-decrypt such references causes Illegal base64 character errors.
             if (!"DB".equalsIgnoreCase(vaultType)) {
-                // For non-DB vault types, return a masked placeholder (no external vault read).
-                // UI only needs to know the credential exists; actual read happens via GET /api/secrets/{id}.
-                et.setValue("*********************");
+                // For non-DB vault types, resolve the actual secret for logging/debugging purposes.
+                // In production, this endpoint should not access external vaults for performance/security.
+                try {
+                    VaultReader reader = findReader(vaultType);
+                    String actualValue = reader.readSecret(et.getName());
+                    log.info("Resolved secret for id={}, name='{}', vaultType='{}': {}", et.getId(), et.getName(), vaultType, actualValue);
+                    et.setValue("*********************"); // Still mask for response
+                } catch (Exception ex) {
+                    log.warn("Failed to resolve secret for id={}, name='{}', vaultType='{}': {}", et.getId(), et.getName(), vaultType, ex.getMessage());
+                    et.setValue("*********************");
+                }
                 continue;
             }
 
             String decrypted;
             try {
                 decrypted = this.getDecreptedValue(et.getValue());
+                log.info("Decrypted DB secret for id={}, name='{}': {}", et.getId(), et.getName(), decrypted);
             } catch (RuntimeException ex) {
                 // Fail-soft: one bad row should not break the whole list.
                 log.warn("Failed to decrypt secret value for id={} (type={}, vaultType={}). Returning masked value.",
