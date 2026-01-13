@@ -75,16 +75,17 @@ public class InMemoryJavaCompiler {
 
       if (isValhalla) {
           // For JDK 23+ builds
+          useOptions("-classpath", classPath );
          // useOptions("--proc:none", "-Xlint:-options");
       } else {
           // For JDK 17 or stable
 
-          useOptions("-proc:none", "-Xlint:-options","--proc:none");
+          useOptions("-proc:none", "-Xlint:unchecked","-classpath", classPath);
       }
 
 
 //    System.out.println("classPath >> Loaded");
-    useOptions("-classpath", classPath );
+
 
 //      useOptions("-proc:none");       // disable annotation processing
 //     useOptions("-Xlint:unchecked");

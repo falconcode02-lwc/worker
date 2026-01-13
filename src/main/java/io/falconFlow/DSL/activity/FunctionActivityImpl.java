@@ -102,17 +102,24 @@ public class FunctionActivityImpl implements FunctionActivity {
       if (param.getType().equals(FRequest.class)) {
         args.add(request);
       } else {
-        // Check for @MCPParam annotation
+        // Check for @FParam annotation
         FParam FParam = param.getAnnotation(FParam.class);
         if (FParam != null) {
           String paramName = FParam.value();
           Object value = request.getPluginProps().get(paramName);
           
+          // Validate required parameters
+          if (FParam.required() && (value == null || value.toString().isEmpty())) {
+            throw new IllegalArgumentException(
+              "Required parameter '" + paramName + "' is missing or empty for method '" + methodName + "'"
+            );
+          }
+          
           // Convert value to the expected parameter type
           Object convertedValue = convertToType(value, param.getType());
           args.add(convertedValue);
         } else {
-          // If no annotation, try to get by parameter name
+          // If no annotation, try to get by parameter name (optional)
           Object value = request.getPluginProps().get(param.getName());
           Object convertedValue = convertToType(value, param.getType());
           args.add(convertedValue);

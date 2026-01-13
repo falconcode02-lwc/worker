@@ -70,6 +70,7 @@ public class PluginManagerService {
 			if (updateDto.getProps() != null) existing.setProps(decodeBase64(updateDto.getProps()));
             if (updateDto.getSecrets() != null) existing.setSecrets(decodeBase64(updateDto.getSecrets()));
 		 	if (updateDto.getIcon() != null) existing.setIcon(updateDto.getIcon());
+            if (updateDto.getPluginType() != null) existing.setPluginType(updateDto.getPluginType());
 			existing.setActive(updateDto.isActive());
 			PluginEntity saved = pluginRepository.save(existing);
 			return PluginDto.fromEntity(saved);
@@ -152,6 +153,7 @@ public class PluginManagerService {
             if (pluginDto.getAiToolDescription() != null) saved.setResources(pluginDto.getResources());
             saved.setAiTool(pluginDto.isAiTool());
             if (pluginDto.getResources() != null) saved.setResources(pluginDto.getResources());
+            if (pluginDto.getPluginType() != null) saved.setPluginType(pluginDto.getPluginType());
             saved.setActive(true);
             saved = pluginRepository.save(saved);
         } else {
@@ -171,6 +173,7 @@ public class PluginManagerService {
             p.setAiToolDescription(pluginDto.getAiToolDescription());
             p.setAiTool(pluginDto.isAiTool());
             p.setResources(pluginDto.getResources());
+            if (pluginDto.getPluginType() != null) p.setPluginType(pluginDto.getPluginType());
             p.setActive(true);
             saved = pluginRepository.save(p);
         }
@@ -230,14 +233,13 @@ public class PluginManagerService {
                 if (tool == null) continue;
                 MCPToolDefinition def = new MCPToolDefinition();
                 def.setName(clazz.getSimpleName() +":"+ method.getName());
-                def.setDescription(tool.descr());
+                def.setDescription(tool.description());
                 def.setMethod(method);
                 def.setBean(clazz.getSimpleName());
-                Map<String, String>  params = resolveSchema(method);
+                Map<String, Map<String, String>>  params = resolveSchema(method);
                 def.setInputSchema(params);
                 System.out.println("Name >>>>> " + def.getName());
                 System.out.println("Defination >>>>> " + def.getInputSchema());
-
 
                 // add method details
                 PluginMethodModel pluginMethodModel = new PluginMethodModel();
@@ -245,7 +247,8 @@ public class PluginManagerService {
                 pluginMethodModel.setName(def.getName());
                 pluginMethodModel.setProperties(params);
                 pluginMethodModel.setDisplayName(tool.name());
-                pluginMethodModel.setDescr(tool.descr());
+                pluginMethodModel.setDescription(tool.description());
+                pluginMethodModel.setSelected(tool.selected());
                 pluginMethodModelList.add(pluginMethodModel);
 
 
@@ -259,19 +262,73 @@ public class PluginManagerService {
         }
     }
 
-    private Map<String, String> resolveSchema(Method method) {
-        Map<String, String> schema = new LinkedHashMap<>();
+    private Map<String, Map<String, String>> resolveSchema(Method method) {
+        Map<String, Map<String, String>> schema = new LinkedHashMap<>();
         for (Parameter p : method.getParameters()) {
             FParam ann = p.getAnnotation(FParam.class);
+            Map<String, String> details = new HashMap<>();
+            details.put("type", resolveMcpType(p.getType()));
             if (ann != null) {
-                schema.put(ann.value(), p.getType().getSimpleName());
+                details.put("description", ann.description());
+                details.put("required", String.valueOf(ann.required()));
+                schema.put(ann.value(), details);
             } else {
-                schema.put(p.getName(), p.getType().getSimpleName());
+                details.put("required", "false");
+                schema.put(p.getName(), details);
             }
-
-
         }
         return schema;
     }
 
+
+
+    private String resolveMcpType(Class<?> type) {
+
+        // String / char
+        if (type == String.class || type == char.class || type == Character.class) {
+            return "string";
+        }
+
+        // Integers
+        if (type == int.class || type == Integer.class
+                || type == long.class || type == Long.class
+                || type == short.class || type == Short.class) {
+            return "integer";
+        }
+
+        // Floating point
+        if (type == float.class || type == Float.class
+                || type == double.class || type == Double.class) {
+            return "number";
+        }
+
+        // Boolean
+        if (type == boolean.class || type == Boolean.class) {
+            return "boolean";
+        }
+
+        // Enums
+        if (type.isEnum()) {
+            return "string";
+        }
+
+        // Arrays / collections
+        if (type.isArray() || Collection.class.isAssignableFrom(type)) {
+            return "array";
+        }
+
+        // Maps / objects
+        if (Map.class.isAssignableFrom(type)) {
+            return "object";
+        }
+
+        // Dates
+        if (java.time.temporal.Temporal.class.isAssignableFrom(type)
+                || java.util.Date.class.isAssignableFrom(type)) {
+            return "string";
+        }
+
+        // Fallback (POJO)
+        return "object";
+    }
 }

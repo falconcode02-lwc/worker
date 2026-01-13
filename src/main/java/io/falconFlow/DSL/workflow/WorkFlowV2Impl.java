@@ -2,9 +2,7 @@ package io.falconFlow.DSL.workflow;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.falconFlow.DSL.activity.ConditionActivity;
-import io.falconFlow.DSL.activity.FunctionActivity;
-import io.falconFlow.DSL.activity.IConditionEntryActivity;
+import io.falconFlow.DSL.activity.*;
 import io.falconFlow.DSL.model.*;
 import io.falconFlow.DSL.utils.HandlebarsUtil;
 import io.falconFlow.DSL.utils.JQUtils;
@@ -14,6 +12,9 @@ import io.falconFlow.DSL.model.InputMap;
 import io.falconFlow.DSL.workflow.model.StateModel;
 import io.falconFlow.DSL.workflow.model.WorkflowModel;
 import io.falconFlow.DSL.workflow.model.WorkflowResultModel;
+import io.falconFlow.model.ai.Parameters;
+import io.falconFlow.model.ai.Property;
+import io.falconFlow.model.ai.ToolDefinition;
 import io.falconFlow.services.isolateservices.StateManagerService;
 import io.temporal.activity.ActivityOptions;
 import io.temporal.common.RetryOptions;
@@ -31,7 +32,6 @@ import java.util.stream.Stream;
 
 import io.temporal.workflow.Async;
 import io.temporal.workflow.Promise;
-import io.falconFlow.DSL.activity.AIActivity;
 import org.thymeleaf.util.StringUtils;
 
 @WorkflowImpl
@@ -86,7 +86,7 @@ public class WorkFlowV2Impl implements IWorkFlowv2 {
       if (step.getType().equals(ActivityType.function) || step.getType().equals(ActivityType.plugin)) {
 
               List<FunctionResponse> res =
-                      (List<FunctionResponse>) executeNode(step, workFlowWrapper.getInput(), state, previousResult);
+                      (List<FunctionResponse>) executeNode(nodeResultList, nodeMap, step, workFlowWrapper.getInput(), state, previousResult);
               previousResult = new InputMap();
               if (res != null && res.size() > 0) {
                   for (int i = 0; i < res.size(); i++) {
@@ -105,7 +105,7 @@ public class WorkFlowV2Impl implements IWorkFlowv2 {
       }
       else if (step.getType().equals(ActivityType.condition)) {
         ConditionResponse res =
-            (ConditionResponse) executeNode(step, workFlowWrapper.getInput(), state, previousResult);
+            (ConditionResponse) executeNode(nodeResultList, nodeMap, step, workFlowWrapper.getInput(), state, previousResult);
         previousResult = new InputMap();
         if(res !=null) {
             if (res.getStatus() != null && res.getStatus().equals(ConditionStatus.TRUE)) {
@@ -128,15 +128,21 @@ public class WorkFlowV2Impl implements IWorkFlowv2 {
       }
       else if (step.getType().equals(ActivityType.switches)) {
           ConditionResponse res =
-                  (ConditionResponse) executeNode(step, workFlowWrapper.getInput(), state, previousResult);
+                  (ConditionResponse) executeNode(nodeResultList, nodeMap, step, workFlowWrapper.getInput(), state, previousResult);
           previousResult = new InputMap();
           if(res !=null && res.getMetaData() != null) {
               nextId = res.getMetaData().toString();
               nodeResult.setStatus("Success");
           }
-      }else  if (step.getType().equals(ActivityType.aiagent)) { // not in use now
-          FunctionResponse res = (FunctionResponse)executeNode(step, workFlowWrapper.getInput(), state, previousResult);
+      }else  if (step.getType().equals(ActivityType.aiagent)) {
+
+
+
+          FunctionResponse res = (FunctionResponse)executeNode(nodeResultList, nodeMap, step, workFlowWrapper.getInput(), state, previousResult);
           previousResult = new InputMap();
+
+
+
           state.setStateValue(res.getState().getStateValue());
           nodeResult.setStatus("Success");
           nextId = step.getNext();
@@ -167,7 +173,7 @@ public class WorkFlowV2Impl implements IWorkFlowv2 {
       }else if (step.getType().equals(ActivityType.childwf)) {
 
           List<FunctionResponse> res =
-                  (List<FunctionResponse>) executeNode(step, workFlowWrapper.getInput(), state, previousResult);
+                  (List<FunctionResponse>) executeNode(nodeResultList, nodeMap, step, workFlowWrapper.getInput(), state, previousResult);
           previousResult = new InputMap();
           if (res != null && res.size() > 0) {
               for (int i = 0; i < res.size(); i++) {
@@ -202,7 +208,7 @@ public class WorkFlowV2Impl implements IWorkFlowv2 {
      return workflowResultModel;
   }
 
-  private Object executeNode(WorkflowModel.Node step, InputMap input, StateModel state, Map previous) {
+  private Object executeNode(List<WorkflowResultModel.NodeResult> nodeResultList, Map<String, WorkflowModel.Node> nodeMap, WorkflowModel.Node step, InputMap input, StateModel state, Map previous) {
       ActivityType type = step.getType();
       String conditionalCall = step.getConditionCall();
       String conditionInline = step.getConditionInline();
@@ -286,14 +292,190 @@ public class WorkFlowV2Impl implements IWorkFlowv2 {
           // Workflow.getLogger(getClass()).info("✅ Function [{}] initiate: ", conditionalCall);
           //FunctionResponse result = activity.callFunction(req);
           // Workflow.getLogger(getClass()).info("✅ Function [{}] result: {}", conditionalCall, result.getMessage());
-          return executeCallNode(step, req, retryOptions, timeout);
+          return executeCallNode(nodeMap, step, req, retryOptions, timeout);
 
       } else if(type.equals(ActivityType.aiagent)){
-          HashMap<String,Object> aiparams = (HashMap<String,Object>)req.getMetaData();
-          options = ActivityOptions.newBuilder(options).setSummary(type + "::" +aiparams.get("aiagent").toString()).build();
-          AIActivity activity = Workflow.newActivityStub(AIActivity.class, options);
-          Workflow.getLogger(getClass()).info("✅ AI Function [{}] : ", req.getCall());
-          return activity.callAI(req);
+            // ReAct Loop for Tool Chaining
+            int maxIterations = 5; // Prevent infinite loops
+            StringBuilder conversationHistory = new StringBuilder();
+            FunctionResponse finalResponse = null;
+
+            String currentPrompt = req.getPluginProps().get("prompt").toString();
+            WorkflowModel.Node model = nodeMap.get(step.getAi().getAimodel());
+
+            // Setup AI model node result tracking
+            WorkflowResultModel.NodeResult nodeResultAI = new WorkflowResultModel.NodeResult();
+            Stream<WorkflowResultModel.NodeResult> existsNodeResult = nodeResultList.stream().filter(a -> a.getId().equals(model.getId()));
+            Optional<WorkflowResultModel.NodeResult> optionalResult = existsNodeResult.findAny();
+            if (optionalResult.isPresent()) {
+                nodeResultAI = optionalResult.get();
+                nodeResultAI.setStatus("Running");
+            } else {
+                nodeResultList.add(nodeResultAI);
+            }
+            nodeResultAI.setStartTime(Timestamp.valueOf(LocalDateTime.now()));
+            nodeResultAI.setId(model.getId());
+            nodeResultAI.setStatus("Running");
+            nodeResultAI.setName(model.getName());
+            nodeResultAI.setType(model.getType().name());
+
+            // Build tool definitions
+            List<String> aitools = step.getAi().getAitool();
+            List<Map> toolsR = new ArrayList<>();
+            Map<String, String> toolMap = new HashMap<>();
+            for (String tool : aitools) {
+                WorkflowModel.Node tl = getStepById(tool, nodeMap);
+                tl.getResource().getProperties().remove("arg0");
+                String d = "{\"name\": \"\",\"description\": \"\",\"parameters\": {\"type\": \"object\",\"properties\": {},\"required\": []}}";
+                Map toolDef = io.falconFlow.services.isolateservices.JsonUtils.jsonToObj(d, Map.class);
+                toolDef.put("name", tl.getResource().getName());
+                toolDef.put("description", tl.getResource().getDescription());
+                Map<String, Map<String, Map<String, String>>> props = (Map<String, Map<String, Map<String, String>>>) toolDef.get("parameters");
+                props.put("properties", tl.getResource().getProperties());
+                toolsR.add(toolDef);
+                toolMap.put(tl.getResource().getName(), tl.getId());
+            }
+
+            String toolStringR = JsonUtils.toJson(toolsR);
+            toolStringR = "<TOOLS>" + toolStringR + "</TOOLS>";
+            
+            // Initialize conversation with goal
+            conversationHistory.append("Goal: ").append(currentPrompt).append("\n\n");
+
+            // ReAct Loop
+            for (int iteration = 0; iteration < maxIterations; iteration++) {
+                Workflow.getLogger(getClass()).info("🔄 AI Agent Iteration {}/{}", iteration + 1, maxIterations);
+
+                // Prepare AI request with conversation history
+                String aimodel = model.getPluginprop().get("model").toString();
+                HashMap<String, Object> aiparams = new HashMap<>();
+                aiparams.put("model", aimodel);
+                aiparams.put("prompt", conversationHistory.toString());
+                aiparams.put("systemprompt", req.getPluginProps().get("systemprompt"));
+                
+                req.setCall(model.getCall()[0]);
+                req.setMetaData(aiparams);
+                req.setPluginProps(model.getPluginprop());
+                req.setAiToolDef(toolStringR);
+
+                // Call AI model
+                options = ActivityOptions.newBuilder(options).setSummary(type + "::" + model.getName() + " (iter " + (iteration + 1) + ")").build();
+                AIActivity activity = Workflow.newActivityStub(AIActivity.class, options);
+                Workflow.getLogger(getClass()).info("✅ AI Function [{}] iteration {}: ", req.getCall(), iteration + 1);
+                FunctionResponse aiResponse = activity.callAI(req);
+                
+                // Parse tool calls from AI response
+                java.util.List<AIActivityImpl.ToolCall> toolCalls = AIActivityImpl.parseToolCalls(aiResponse.getNext().get("response").toString());
+                
+                // Check if AI provided final answer (no tool calls)
+                if (toolCalls == null || toolCalls.isEmpty()) {
+                    Workflow.getLogger(getClass()).info("✅ AI provided final answer at iteration {}", iteration + 1);
+                    finalResponse = aiResponse;
+                    break; // Exit loop - we have final answer
+                }
+
+                Workflow.getLogger(getClass()).info("🔧 Executing {} tool(s) at iteration {}", toolCalls.size(), iteration + 1);
+
+                // Execute all tool calls and collect results
+                StringBuilder toolResults = new StringBuilder();
+                toolResults.append("Tool execution results:\n");
+
+                for (AIActivityImpl.ToolCall toolCall : toolCalls) {
+                    String toolID = toolMap.get(toolCall.getTool());
+
+                    if (toolID == null) {
+                        Workflow.getLogger(getClass()).warn("⚠️ Tool '{}' not found in tool map", toolCall.getTool());
+                        toolResults.append("- Tool '").append(toolCall.getTool()).append("' not found\n");
+                        continue;
+                    }
+
+                    Workflow.getLogger(getClass()).info("🔨 Executing tool: {}", toolCall.getTool());
+
+                    // Setup tool node
+                    WorkflowModel.Node toolNode = nodeMap.get(toolID);
+                    toolNode.getPluginprop().putAll(toolCall.getArgs());
+
+                    // Track tool execution in results
+                    WorkflowResultModel.NodeResult nodeResultTool = new WorkflowResultModel.NodeResult();
+                    Stream<WorkflowResultModel.NodeResult> existsNodeResultTool = nodeResultList.stream().filter(a -> a.getId().equals(toolID));
+                    Optional<WorkflowResultModel.NodeResult> optionalToolResult = existsNodeResultTool.findAny();
+                    if (optionalToolResult.isPresent()) {
+                        nodeResultTool = optionalToolResult.get();
+                        nodeResultTool.setStatus("Running");
+                    } else {
+                        nodeResultList.add(nodeResultTool);
+                    }
+                    nodeResultTool.setStartTime(Timestamp.valueOf(LocalDateTime.now()));
+                    nodeResultTool.setId(toolID);
+                    nodeResultTool.setStatus("Running");
+                    nodeResultTool.setName(toolNode.getName());
+                    nodeResultTool.setType(toolNode.getType().name());
+
+                    // Create tool request
+                    FRequest toolReq = new FRequest();
+                    toolReq.setWorkflowId(Workflow.getInfo().getWorkflowId());
+                    toolReq.setActivityId(toolNode.getId());
+                    toolReq.setInput(input);
+                    toolReq.setPrevious(previous);
+                    toolReq.setUserInput(userInput);
+                    toolReq.setPluginProps(toolNode.getPluginprop());
+                    toolReq.setState(state);
+                    toolReq.setCall(conditionalCall);
+                    toolReq.setTimeStamp(Date.from(Instant.now()));
+                    toolReq.setMetaData(toolNode.getMetaData());
+
+                    // Execute tool
+                    try {
+                        List<FunctionResponse> toolResponse = (List<FunctionResponse>) executeCallNode(nodeMap, toolNode, toolReq, retryOptions, timeout);
+
+                        // Collect tool result
+                        if (toolResponse != null && !toolResponse.isEmpty()) {
+                            FunctionResponse tr = toolResponse.get(0);
+                            String resultMessage = tr.getMessage() != null ? tr.getMessage() : "Success";
+                            toolResults.append("- ").append(toolCall.getTool()).append(": ").append(resultMessage).append("\n");
+
+                            // Update state if needed
+                            if (tr.getState() != null && tr.getState().getStateValue() != null) {
+                                state.setStateValue(tr.getState().getStateValue());
+                            }
+                            
+                            nodeResultTool.setStatus("Success");
+                        } else {
+                            toolResults.append("- ").append(toolCall.getTool()).append(": No response\n");
+                            nodeResultTool.setStatus("Success");
+                        }
+                    } catch (Exception e) {
+                        Workflow.getLogger(getClass()).error("❌ Tool execution failed: {}", e.getMessage());
+                        toolResults.append("- ").append(toolCall.getTool()).append(": Error - ").append(e.getMessage()).append("\n");
+                        nodeResultTool.setStatus("Failed");
+                    }
+
+                    nodeResultTool.setEndTime(Timestamp.valueOf(LocalDateTime.now()));
+                }
+
+                // Add tool results to conversation history for next iteration
+                conversationHistory.append(toolResults.toString()).append("\n");
+                Workflow.getLogger(getClass()).info("📝 Tool results added to conversation history");
+            }
+
+            // Handle max iterations reached without final answer
+            if (finalResponse == null) {
+                Workflow.getLogger(getClass()).warn("⚠️ Max iterations ({}) reached without final answer", maxIterations);
+                finalResponse = new FunctionResponse();
+                finalResponse.setMessage("Max iterations reached without final answer. Last conversation:\n" + conversationHistory.toString());
+                finalResponse.setState(state);
+                finalResponse.setStatus(FunctionStatus.SUCCESS);
+                InputMap nextMap = new InputMap();
+                nextMap.put("response", "Max iterations reached");
+                finalResponse.setNext(nextMap);
+            }
+
+            nodeResultAI.setStatus("Success");
+            nodeResultAI.setEndTime(Timestamp.valueOf(LocalDateTime.now()));
+
+            return finalResponse;
+        // here we need to write response to the main activity
+
       }
       else if (type.equals(ActivityType.condition)) {
 
@@ -381,7 +563,7 @@ public class WorkFlowV2Impl implements IWorkFlowv2 {
 
   }
 
-  private Object executeCallNode(WorkflowModel.Node step, FRequest request, RetryOptions retryOptions, Duration timeout){
+  private Object executeCallNode(Map<String, WorkflowModel.Node> nodeMap, WorkflowModel.Node step, FRequest request, RetryOptions retryOptions, Duration timeout){
       ActivityType type = step.getType();
       String[] call = step.getCall();
 
@@ -452,6 +634,16 @@ public class WorkFlowV2Impl implements IWorkFlowv2 {
       return map;
   }
 
+  private WorkflowModel.Node getStepById(String id, Map<String, WorkflowModel.Node> nodeMap){
+      return nodeMap.get(id);
+  }
+
+  private String getTool(List<String> nodeIds, Map<String, WorkflowModel.Node> nodeMap){
+
+
+
+      return "";
+  }
 
 
   @Override

@@ -1,5 +1,6 @@
 package io.falconFlow.entity;
 
+import io.falconFlow.interfaces.enums.PluginType;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
@@ -36,6 +37,10 @@ public class PluginEntity {
 
     @Column(name = "plugin_category", nullable = true, length = 4000)
     private String pluginCategory;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "pluginType", nullable = false)
+    private PluginType pluginType = PluginType.PLUGIN;
 
     @Lob
     @Column(name = "props", nullable = true)
@@ -162,6 +167,14 @@ public class PluginEntity {
 
     public void setResources(String resources) {
         this.resources = resources;
+    }
+
+    public PluginType getPluginType() {
+        return pluginType;
+    }
+
+    public void setPluginType(PluginType pluginType) {
+        this.pluginType = pluginType;
     }
 }
 

@@ -6,9 +6,10 @@ public class PluginMethodModel {
 
     private String name;
     private String method;
-    private Map<String, String> properties;
+    private Map<String,  Map<String, String>> properties;
     private String displayName;
-    private String descr;
+    private String description;
+    private boolean selected;
 
     public String getName() {
         return name;
@@ -26,11 +27,11 @@ public class PluginMethodModel {
         this.method = method;
     }
 
-    public Map<String, String> getProperties() {
+    public Map<String,  Map<String, String>> getProperties() {
         return properties;
     }
 
-    public void setProperties(Map<String, String> properties) {
+    public void setProperties(Map<String,  Map<String, String>> properties) {
         this.properties = properties;
     }
 
@@ -42,11 +43,19 @@ public class PluginMethodModel {
         this.displayName = displayName;
     }
 
-    public String getDescr() {
-        return descr;
+    public String getDescription() {
+        return description;
     }
 
-    public void setDescr(String descr) {
-        this.descr = descr;
+    public void setDescription(String description) {
+        this.description = description;
+    }
+
+    public boolean getSelected() {
+        return selected;
+    }
+
+    public void setSelected(boolean selected) {
+        this.selected = selected;
     }
 }

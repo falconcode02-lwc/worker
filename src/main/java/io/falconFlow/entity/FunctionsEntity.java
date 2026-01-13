@@ -1,5 +1,6 @@
 package io.falconFlow.entity;
 
+import io.falconFlow.interfaces.enums.PluginType;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
@@ -28,6 +29,10 @@ public class FunctionsEntity {
 
   @Column(name = "classType", nullable = false, length = 20)
   private String classType;
+
+  @Enumerated(EnumType.STRING)
+  @Column(name = "subType", nullable = false)
+  private PluginType subType = PluginType.PLUGIN;
 
   @Column(name = "fqcn", nullable = false, length = 300)
   private String fqcn;
@@ -191,4 +196,12 @@ public class FunctionsEntity {
   public void setRawProcessClass(String rawProcessClass) {
     this.rawProcessClass = rawProcessClass;
   }
+
+    public PluginType getSubType() {
+        return subType;
+    }
+
+    public void setSubType(PluginType subType) {
+        this.subType = subType;
+    }
 }

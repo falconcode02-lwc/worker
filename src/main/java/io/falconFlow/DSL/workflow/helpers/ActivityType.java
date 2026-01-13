@@ -11,5 +11,6 @@ public enum ActivityType {
     switches,
     aiagent,
     plugin,
-    childwf
+    childwf,
+    aitool,
 }
