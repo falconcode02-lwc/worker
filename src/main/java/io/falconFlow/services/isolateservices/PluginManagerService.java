@@ -277,6 +277,7 @@ public class PluginManagerService {
                 schema.put(p.getName(), details);
             }
         }
+
         return schema;
     }
 

@@ -1,8 +1,13 @@
 package io.falconFlow.dto;
 
+import java.io.Serial;
+import java.io.Serializable;
 import java.time.LocalDateTime;
 
-public class FormsDTO {
+public class FormsDTO implements Serializable {
+    @Serial
+    private static final long serialVersionUID = 1L;
+
     private Integer id;
     private String code;
     private String name;

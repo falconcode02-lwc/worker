@@ -73,20 +73,23 @@ public class AIActivityImpl implements AIActivity {
 
             // --- ReAct Loop Setup ---
             // Construct the system/initial message with tool definitions
-            StringBuilder conversation = new StringBuilder();
-            conversation.append("You are an AI assistant. You have access to the following tools:\n");
-            conversation.append(atRequestParser.getAiToolDef()).append("\n\n");
-            conversation.append("To use a tool, output a JSON object ONLY. \n");
-            conversation.append("Supported formats:\n");
-            conversation.append("1. {\"tool\": \"toolName\", \"args\": { ... }}\n");
-            conversation.append("2. {\"tool_calls\": [{\"tool_name\": \"toolName\", \"arguments\": { ... }}]}\n");
-            conversation.append("If you have the final answer, output the answer directly without JSON.\n");
-            conversation.append(systemprompt);
-            conversation.append("\n");
-            conversation.append("Goal: ").append(initialPrompt).append("\n");
 
 
-            String currentPrompt = conversation.toString();
+            String currentPrompt = "You are an AI agent with access to external tools.\n " +
+                    atRequestParser.getAiToolDef() + "\n\n " +
+                    "To use a tool, output a JSON object ONLY. \n " +
+                    "Supported formats:\n " +
+                    "{\"tool_calls\": [{\"tool_name\": \"toolName\", \"arguments\": { ... }}]}\n " +
+                    "Rules for tool usage:\n " +
+                    "1. Only call each tool ONCE per user request.\n " +
+                    "2. Before calling a tool, check if it has already been invoked in this turn.\n " +
+                    "   If yes, reuse the result or skip the call.\n " +
+                    "3. If multiple tools are needed, use parallel execution instead of sequential duplicate calls.\n " +
+                    "4. Never call the same tool twice for the same query unless the user explicitly asks for more results.\n " +
+                    "5. If the request is vague, ask the user for clarification instead of calling multiple tools.\n "+
+                    systemprompt +
+                    " \n " +
+                    "Goal: " + initialPrompt + "\n ";
             // String finalAnswer = null;
 
             InputMap im = atRequestParser.getPluginProps();
@@ -98,6 +101,7 @@ public class AIActivityImpl implements AIActivity {
 
             im.put("prompt", currentPrompt);
 
+            System.out.println("currentPrompt >>>> "+ currentPrompt);
 
             atRequestParser.setWorkflowActivityId(info.getActivityId());
 

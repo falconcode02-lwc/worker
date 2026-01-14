@@ -296,7 +296,7 @@ public class WorkFlowV2Impl implements IWorkFlowv2 {
 
       } else if(type.equals(ActivityType.aiagent)){
             // ReAct Loop for Tool Chaining
-            int maxIterations = 5; // Prevent infinite loops
+            int maxIterations = 1; // Prevent infinite loops
             StringBuilder conversationHistory = new StringBuilder();
             FunctionResponse finalResponse = null;
 
@@ -330,8 +330,20 @@ public class WorkFlowV2Impl implements IWorkFlowv2 {
                 Map toolDef = io.falconFlow.services.isolateservices.JsonUtils.jsonToObj(d, Map.class);
                 toolDef.put("name", tl.getResource().getName());
                 toolDef.put("description", tl.getResource().getDescription());
-                Map<String, Map<String, Map<String, String>>> props = (Map<String, Map<String, Map<String, String>>>) toolDef.get("parameters");
+                Map<String, Map<String, Map<String, String>>> props =
+                        (Map<String, Map<String, Map<String, String>>>) toolDef.get("parameters");
+                List<String> required = new ArrayList<>();
+                for (Map.Entry<String, Map<String, String>> entr : tl.getResource().getProperties().entrySet()){
+                        if(entr.getValue().containsKey("required")){
+                            if(Boolean.valueOf(entr.getValue().get("required"))){
+                                required.add(entr.getKey());
+                            }
+                            entr.getValue().remove("required");
+                        }
+                }
                 props.put("properties", tl.getResource().getProperties());
+                ((Map<String, Object>)toolDef.get("parameters")).put("required", required);
+
                 toolsR.add(toolDef);
                 toolMap.put(tl.getResource().getName(), tl.getId());
             }
@@ -389,11 +401,15 @@ public class WorkFlowV2Impl implements IWorkFlowv2 {
                         continue;
                     }
 
-                    Workflow.getLogger(getClass()).info("🔨 Executing tool: {}", toolCall.getTool());
+                    Workflow.getLogger(getClass()).info("🔨 Executing tool: {} with args: {}", toolCall.getTool(), toolCall.getArgs());
 
                     // Setup tool node
                     WorkflowModel.Node toolNode = nodeMap.get(toolID);
-                    toolNode.getPluginprop().putAll(toolCall.getArgs());
+                    
+                    // IMPORTANT: Create a copy of pluginProps to avoid modifying the shared node
+                    InputMap toolPluginProps = new InputMap();
+                    toolPluginProps.putAll(toolNode.getPluginprop());
+                    toolPluginProps.putAll(toolCall.getArgs());
 
                     // Track tool execution in results
                     WorkflowResultModel.NodeResult nodeResultTool = new WorkflowResultModel.NodeResult();
@@ -418,7 +434,7 @@ public class WorkFlowV2Impl implements IWorkFlowv2 {
                     toolReq.setInput(input);
                     toolReq.setPrevious(previous);
                     toolReq.setUserInput(userInput);
-                    toolReq.setPluginProps(toolNode.getPluginprop());
+                    toolReq.setPluginProps(toolPluginProps);  // Use the copy instead of modified node
                     toolReq.setState(state);
                     toolReq.setCall(conditionalCall);
                     toolReq.setTimeStamp(Date.from(Instant.now()));
