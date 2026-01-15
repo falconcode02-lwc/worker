@@ -234,13 +234,36 @@ public class SecretServiceImpl implements SecretService {
             // - AZURE/GCP vault types may store a reference like `azure-kv:<id>`.
             // Trying to AES-decrypt such references causes Illegal base64 character errors.
             if (!"DB".equalsIgnoreCase(vaultType)) {
-                // For non-DB vault types, resolve the actual secret for logging/debugging purposes.
-                // In production, this endpoint should not access external vaults for performance/security.
+                // For non-DB vault types, resolve the actual secret and return it in the
+                // same JSON-masked format as DB entries. This preserves UI expectations
+                // while still avoiding exposing password fields.
                 try {
                     VaultReader reader = findReader(vaultType);
                     String actualValue = reader.readSecret(et.getName());
-                    log.info("Resolved secret for id={}, name='{}', vaultType='{}': {}", et.getId(), et.getName(), vaultType, actualValue);
-                    et.setValue("*********************"); // Still mask for response
+                    log.info("Resolved secret for id={}, name='{}', vaultType='{}'", et.getId(), et.getName(), vaultType);
+
+                    if (!StringUtils.hasText(actualValue)) {
+                        et.setValue("*********************");
+                        continue;
+                    }
+
+                    // Try to parse the returned secret as JSON. If it's JSON, mask password fields
+                    // similarly to DB handling and return the JSON string. If it's not JSON, return
+                    // the raw value (or masked if you prefer).
+                    try {
+                        Map<String, Object> mp = mapper.readValue(actualValue, new TypeReference<Map<String, Object>>() {});
+                        for (PluginSecretModel.Fields fld : s) {
+                            if (mp.containsKey(fld.getId())) {
+                                mp.put(fld.getId(), "*********************");
+                            }
+                        }
+                        et.setValue(mapper.writeValueAsString(mp));
+                    } catch (JsonProcessingException jex) {
+                        // Not JSON - return the raw resolved value. If you want to mask non-JSON
+                        // values by default, replace with the masked string here instead.
+                        et.setValue(actualValue);
+                    }
+
                 } catch (Exception ex) {
                     log.warn("Failed to resolve secret for id={}, name='{}', vaultType='{}': {}", et.getId(), et.getName(), vaultType, ex.getMessage());
                     et.setValue("*********************");
