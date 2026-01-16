@@ -1,10 +1,13 @@
 package io.falconFlow.services.secret.vault;
 
-import java.io.FileInputStream;
+import java.io.InputStream;
 import java.time.Instant;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.core.io.ClassPathResource;
+import org.springframework.core.io.FileSystemResource;
+import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
@@ -147,26 +150,40 @@ public class GoogleSecretManagerWriter implements VaultWriter, VaultReader {
     public boolean supports(String vaultType) {
         return "GCP".equalsIgnoreCase(vaultType);
     }
+    
+private SecretManagerServiceClient buildClient() throws Exception {
 
-    private SecretManagerServiceClient buildClient() throws Exception {
-        if (!StringUtils.hasText(props.getProjectId())) {
-            throw new IllegalStateException("vault.gcp.project-id is not configured");
-        }
-        if (!StringUtils.hasText(props.getCredentialsPath())) {
-            throw new IllegalStateException("vault.gcp.credentials-path is not configured");
-        }
-
-        GoogleCredentials credentials;
-        try (FileInputStream fis = new FileInputStream(props.getCredentialsPath())) {
-            credentials = GoogleCredentials.fromStream(fis);
-        }
-
-        SecretManagerServiceSettings settings = SecretManagerServiceSettings.newBuilder()
-                .setCredentialsProvider(FixedCredentialsProvider.create(credentials))
-                .build();
-
-        return SecretManagerServiceClient.create(settings);
+    if (!StringUtils.hasText(props.getProjectId())) {
+        throw new IllegalStateException("vault.gcp.project-id is not configured");
     }
+    if (!StringUtils.hasText(props.getCredentialsPath())) {
+        throw new IllegalStateException("vault.gcp.credentials-path is not configured");
+    }
+
+    GoogleCredentials credentials;
+
+    Resource resource;
+    String path = props.getCredentialsPath();
+
+    if (path.startsWith("classpath:")) {
+        resource = new ClassPathResource(path.replace("classpath:", ""));
+    } else {
+        resource = new FileSystemResource(path);
+    }
+
+    try (InputStream is = resource.getInputStream()) {
+        credentials = GoogleCredentials.fromStream(is);
+    }
+
+    SecretManagerServiceSettings settings =
+            SecretManagerServiceSettings.newBuilder()
+                    .setCredentialsProvider(
+                            FixedCredentialsProvider.create(credentials)
+                    )
+                    .build();
+
+    return SecretManagerServiceClient.create(settings);
+}
 
     private void validate(SecretDto request) {
         if (request == null) throw new IllegalArgumentException("Request is required");
