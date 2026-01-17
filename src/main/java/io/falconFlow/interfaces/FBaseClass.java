@@ -11,7 +11,8 @@ import java.util.HashMap;
 import java.util.Map;
 
 @Service
-public class FBaseClass implements IFBaseClass  {
+public class FBaseClass implements IFBaseClass   {
+
     @Autowired
     SecretManagerService vault;
     @Autowired
@@ -52,8 +53,12 @@ public class FBaseClass implements IFBaseClass  {
 
     @Override
     public State getState(){
+
         return state;
     }
+
+
+
 
     @Override
     public void setCache(String key, Object value) {
