@@ -1,5 +1,6 @@
 package io.falconFlow.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import io.falconFlow.interfaces.enums.PluginType;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
@@ -13,7 +14,7 @@ import java.time.Instant;
     uniqueConstraints = {@UniqueConstraint(name = "ff_plugin__UN", columnNames = "plugin_id")},
         indexes = {@Index(name = "idx_plugin_name", columnList = "plugin_name" )}
 )
-
+@JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
 public class PluginEntity {
 
     @Id
@@ -83,6 +84,22 @@ public class PluginEntity {
 
     @Column(name = "version", length = 50)
     private String version;
+
+    @Column(name = "workspace_code", length = 200)
+    private String workspaceCode;
+
+    @Column(name = "project_code", length = 200)
+    private String projectCode;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "workspace_id")
+    @JsonIgnoreProperties({"projects", "hibernateLazyInitializer", "handler"})
+    private WorkSpaceEntity workspace;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "project_id")
+    @JsonIgnoreProperties({"workflows", "hibernateLazyInitializer", "handler"})
+    private ProjectEntity project;
 
     private Instant lastLoadedAt;
 
@@ -175,6 +192,38 @@ public class PluginEntity {
 
     public void setPluginType(PluginType pluginType) {
         this.pluginType = pluginType;
+    }
+
+    public String getWorkspaceCode() {
+        return workspaceCode;
+    }
+
+    public void setWorkspaceCode(String workspaceCode) {
+        this.workspaceCode = workspaceCode;
+    }
+
+    public String getProjectCode() {
+        return projectCode;
+    }
+
+    public void setProjectCode(String projectCode) {
+        this.projectCode = projectCode;
+    }
+
+    public WorkSpaceEntity getWorkspace() {
+        return workspace;
+    }
+
+    public void setWorkspace(WorkSpaceEntity workspace) {
+        this.workspace = workspace;
+    }
+
+    public ProjectEntity getProject() {
+        return project;
+    }
+
+    public void setProject(ProjectEntity project) {
+        this.project = project;
     }
 }
 

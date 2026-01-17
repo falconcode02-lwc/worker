@@ -15,9 +15,13 @@ import java.time.Duration;
 @WorkflowImpl
 public class ScheduleWorkflowImpl implements IScheduleWorkflow {
 
-    private final IPreScheduleActivity hook = Workflow.newActivityStub(
+    private IPreScheduleActivity hook = Workflow.newActivityStub(
             IPreScheduleActivity.class,
             ActivityOptions.newBuilder()
+                    .setTaskQueue(
+                        (Workflow.getInfo().getNamespace() != null && !Workflow.getInfo().getNamespace().equals("default")) 
+                        ? Workflow.getInfo().getNamespace() : "FalconFlow"
+                    )
                     .setStartToCloseTimeout(Duration.ofSeconds(10))
                     .build()
     );

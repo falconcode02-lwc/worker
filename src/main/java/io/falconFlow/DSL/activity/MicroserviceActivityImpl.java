@@ -18,8 +18,8 @@ import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
 
-//@Component
-// @ActivityImpl(taskQueues = "MICROSERVICE_TASK_QUEUE_1")
+@Component
+@ActivityImpl()
 public class MicroserviceActivityImpl implements MicroserviceActivity {
 
   private final ObjectMapper objectMapper = new ObjectMapper();

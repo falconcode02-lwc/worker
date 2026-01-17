@@ -19,7 +19,7 @@ import java.util.Objects;
 import io.falconFlow.interfaces.FParam;
 
 @Component
-@ActivityImpl(taskQueues = "MICROSERVICE_TASK_QUEUE_V2")
+@ActivityImpl()
 public class FunctionActivityImpl implements FunctionActivity {
 
   @Autowired private BeanFetcher serviceFetcher;

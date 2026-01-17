@@ -8,6 +8,7 @@ import io.falconFlow.services.genservice.WorkflowsService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 import java.util.List;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/v1/workflows")
@@ -17,19 +18,21 @@ public class WorkflowController {
     private WorkflowsService workflowService;
 
     @PostMapping
-    public WorkFlowsEntity createWorkflow(@RequestBody WorkFlowsEntity dto) {
+    public WorkFlowsEntity createWorkflow(@RequestBody WorkFlowsEntity dto,
+                                        @RequestParam(required = false) UUID projectId) {
 
-        if(dto.getId() >  0){
-            return workflowService.update(dto.getId(), dto);
+        if(dto.getId() != null && dto.getId() >  0){
+            return workflowService.update(dto.getId(), dto, projectId);
         }else{
             dto.setId(null);
         }
-        return workflowService.create(dto);
+        return workflowService.create(dto, projectId);
     }
 
     @GetMapping
-    public List<WorkflowsDTO> getAllWorkflows() {
-        return workflowService.findAll();
+    public List<WorkflowsDTO> getAllWorkflows(@RequestParam(required = false) String workspaceId,
+                                            @RequestParam(required = false) UUID projectId) {
+        return workflowService.findAll(workspaceId, projectId);
     }
 
     @GetMapping("/{id}")
@@ -53,7 +56,8 @@ public class WorkflowController {
     }
 
     @GetMapping("/active")
-    public List<WorkflowsNameDTO> getActiveWorkflows() {
-        return workflowService.findAllActive();
+    public List<WorkflowsNameDTO> getActiveWorkflows(@RequestParam(required = false) String workspaceId,
+                                                   @RequestParam(required = false) UUID projectId) {
+        return workflowService.findAllActive(workspaceId, projectId);
     }
 }

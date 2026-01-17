@@ -15,6 +15,8 @@ import io.falconFlow.services.genservice.FunctionService;
 import io.falconFlow.services.genservice.LoanApplicationService;
 import io.falconFlow.services.workflow.TemporalHistoryReader;
 import io.falconFlow.services.workflow.WorkflowStatusCountService;
+import io.falconFlow.entity.WorkSpaceEntity;
+import io.falconFlow.repository.WorkspaceRepository;
 import io.temporal.api.enums.v1.WorkflowExecutionStatus;
 import io.temporal.api.history.v1.History;
 import io.temporal.api.workflow.v1.WorkflowExecutionInfo;
@@ -32,6 +34,7 @@ import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestParam;
 
 import java.util.HashMap;
 import java.util.List;
@@ -45,6 +48,8 @@ public class RootController {
   @Autowired LoanApplicationService loanApplicationService;
 
   @Autowired FunctionService functionService;
+
+  @Autowired WorkspaceRepository workspaceRepository;
 
   WorkflowServiceStubs service = WorkflowServiceStubs.newLocalServiceStubs();
 
@@ -127,7 +132,7 @@ public class RootController {
             IWorkFlowv2.class,
             WorkflowOptions.newBuilder()
                 .setWorkflowId(String.valueOf(l.getId()))
-                .setTaskQueue("MICROSERVICE_TASK_QUEUE_V2")
+                .setTaskQueue("org_ORG-12345_ws_9cfa1f9a-7468-4f28-ab83-5162f073a9a8")
                 .build());
 
     // This starts the workflow asynchronously (does NOT block)
@@ -180,8 +185,15 @@ public class RootController {
   }
 
   @GetMapping("/getAllCounts")
-  public ResponseEntity getAllCounts() {
-    WorkflowStatusCountService metrics = new WorkflowStatusCountService("default");
+  public ResponseEntity getAllCounts(@RequestParam(required = false) String workspaceId) {
+    String resolvedNamespace = "default";
+    if (workspaceId != null && !workspaceId.isEmpty()) {
+      var ws = workspaceRepository.findByCode(workspaceId);
+      if (ws.isPresent()) {
+        resolvedNamespace = ws.get().getTemporalNamespace();
+      }
+    }
+    WorkflowStatusCountService metrics = new WorkflowStatusCountService(resolvedNamespace);
     HashMap<String, Integer> d = new HashMap<>();
     metrics
         .getWorkflowStatusCounts()
@@ -194,31 +206,42 @@ public class RootController {
   }
 
   @GetMapping("/getHistory")
-  public ResponseEntity<String> getHistory(@Param("workflowId") String workflowId) {
+  public ResponseEntity<String> getHistory(
+      @Param("workflowId") String workflowId,
+      @RequestParam(required = false) String workspaceId,
+      @RequestParam(required = false) String namespace) {
 
     History data = null;
 
-      WorkflowClient client = WorkflowClient.newInstance(service);
-      WorkflowStub stub = client.newUntypedWorkflowStub(workflowId);
-
-      try {
-          WorkflowExecutionInfo info = stub.describe().getWorkflowExecutionInfo();
-          WorkflowExecutionStatus status = info.getStatus();
-           System.out.println(status.name().replace("WORKFLOW_EXECUTION_STATUS_", ""));
-
-      } catch (Exception e) {
-          if (e.getCause().getMessage().contains("NOT_FOUND")) {
-
-
-          } else {
-
-
-          }
+    String resolvedNamespace = "default";
+    if (namespace != null && !namespace.isEmpty()) {
+      resolvedNamespace = namespace;
+    } else if (workspaceId != null && !workspaceId.isEmpty()) {
+      var ws = workspaceRepository.findByCode(workspaceId);
+      if (ws.isPresent()) {
+        resolvedNamespace = ws.get().getTemporalNamespace();
       }
+    }
+
+    WorkflowClient client = WorkflowClient.newInstance(service);
+    WorkflowStub stub = client.newUntypedWorkflowStub(workflowId);
 
     try {
-      TemporalHistoryReader temporalHistoryReader = new TemporalHistoryReader(service);
-      data = temporalHistoryReader.getFullHistory("default", workflowId, "");
+      WorkflowExecutionInfo info = stub.describe().getWorkflowExecutionInfo();
+      WorkflowExecutionStatus status = info.getStatus();
+      System.out.println(status.name().replace("WORKFLOW_EXECUTION_STATUS_", ""));
+
+    } catch (Exception e) {
+      if (e.getCause().getMessage().contains("NOT_FOUND")) {
+
+      } else {
+
+      }
+    }
+
+    try {
+      TemporalHistoryReader temporalHistoryReader = new TemporalHistoryReader(service, workspaceRepository);
+      data = temporalHistoryReader.getFullHistory(resolvedNamespace, workflowId, "");
 
       String json = JsonFormat.printer().includingDefaultValueFields().print(data);
       return ResponseEntity.ok().contentType(MediaType.APPLICATION_JSON).body(json);

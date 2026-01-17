@@ -23,6 +23,9 @@ public class WorkspaceService {
     @Autowired
     private TemporalNamespaceService temporalNamespaceService;
 
+    @Autowired
+    private io.falconFlow.services.workspace.DynamicWorkerManager workerManager;
+
     public Page<WorkspaceListDTO> listWorkspaces(int page, int size, String orgId) {
         Pageable pageable = PageRequest.of(
                 page,
@@ -56,7 +59,16 @@ public class WorkspaceService {
 
         WorkSpaceEntity workSpaceEntity = getWorkSpaceEntity(workspaceCreateDTO, workspaceId, namespace);
 
-        temporalNamespaceService.createNamespace(namespace, 30);
+        // Create namespace with descriptive information
+        String namespaceDescription = String.format(
+                "FalconFlow workspace: %s - %s",
+                workspaceCreateDTO.getName(),
+                workspaceCreateDTO.getDescription() != null ? workspaceCreateDTO.getDescription() : "No description"
+        );
+        temporalNamespaceService.createNamespace(namespace, 30, namespaceDescription);
+
+        // Register worker for this namespace
+        workerManager.registerWorkerForNamespace(namespace);
 
         WorkSpaceEntity saved = workspaceRepository.save(workSpaceEntity);
         return toResponseDto(saved);
@@ -86,6 +98,14 @@ public class WorkspaceService {
         entity.setName(dto.getName());
         entity.setIcon(dto.getIcon());
         entity.setDescription(dto.getDescription());
+
+        // Update Temporal namespace description
+        String namespaceDescription = String.format(
+                "FalconFlow workspace: %s - %s",
+                entity.getName(),
+                entity.getDescription() != null ? entity.getDescription() : "No description"
+        );
+        temporalNamespaceService.updateNamespace(entity.getTemporalNamespace(), namespaceDescription);
 
         WorkSpaceEntity saved = workspaceRepository.save(entity);
         return toResponseDto(saved);

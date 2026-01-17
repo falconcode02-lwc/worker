@@ -13,6 +13,10 @@ import io.falconFlow.DSL.workflow.model.WorkflowResultModel;
 import io.falconFlow.dto.*;
 import io.falconFlow.interfaces.IController;
 import io.falconFlow.services.genservice.WorkflowsService;
+import io.falconFlow.services.workflow.WorkflowStatusCountService;
+import io.falconFlow.services.workspace.WorkflowClientFactory;
+import io.falconFlow.entity.WorkSpaceEntity;
+import io.falconFlow.repository.WorkspaceRepository;
 import io.grpc.StatusRuntimeException;
 import io.temporal.api.common.v1.WorkflowExecution;
 import io.temporal.api.enums.v1.WorkflowExecutionStatus;
@@ -55,6 +59,12 @@ public class WorkflowManagerController {
     @Autowired
     WorkflowsService workflowsService;
 
+    @Autowired
+    WorkflowClientFactory workflowClientFactory;
+
+    @Autowired
+    WorkspaceRepository workspaceRepository;
+
     ObjectMapper mapper = new ObjectMapper(
 
     );
@@ -86,13 +96,19 @@ public class WorkflowManagerController {
             return new ResponseEntity<>(res, HttpStatus.OK);
         }
 
-        WorkflowClient client = WorkflowClient.newInstance(service);
+        // Use workspace-specific namespace
+        String namespace = responseWrapper.getWorkspaceNamespace();
+        WorkflowClient client = workflowClientFactory.createClient(namespace);
+        
+        // Use namespace as task queue name for workspace-specific isolation
+        String taskQueueName = (namespace != null && !namespace.isEmpty()) ? namespace : taskQueue;
+
         IWorkFlowv2 workflow =
                 client.newWorkflowStub(
                         IWorkFlowv2.class,
                         WorkflowOptions.newBuilder()
                                 .setWorkflowId(res.getWorkflowId())
-                                .setTaskQueue(taskQueue)
+                                .setTaskQueue(taskQueueName)
                                 .build());
 
 
@@ -122,7 +138,10 @@ public class WorkflowManagerController {
             res.setMessage("Workflow id if required!");
             return new ResponseEntity<>(res, HttpStatus.BAD_REQUEST);
         }
-        WorkflowClient client = WorkflowClient.newInstance(service);
+        
+        // Get workspace namespace for this workflow
+        String namespace = getWorkspaceNamespaceForWorkflow(workFlowManagerRequest.getWorkflowCode());
+        WorkflowClient client = workflowClientFactory.createClient(namespace);
         WorkflowStub stub = client.newUntypedWorkflowStub(workFlowManagerRequest.getWorkflowId());
 
         try {
@@ -202,15 +221,23 @@ public class WorkflowManagerController {
 
     @GetMapping("/list")
     public ResponseEntity<PaginatedResponse> getWorkflows(
+            @RequestParam(required = false) String workspaceId,
             @RequestParam(defaultValue = "default") String namespace,
             @RequestParam(defaultValue = "") String query,
             @RequestParam(defaultValue = "10") int pageSize,
             @RequestParam(defaultValue = "") String nextPageToken
     ) {
 
+        String resolvedNamespace = namespace;
+        if (workspaceId != null && !workspaceId.isEmpty()) {
+            Optional<WorkSpaceEntity> ws = workspaceRepository.findByCode(workspaceId);
+            if (ws.isPresent()) {
+                resolvedNamespace = ws.get().getTemporalNamespace();
+            }
+        }
 
         ListWorkflowExecutionsRequest.Builder reqBuilder = ListWorkflowExecutionsRequest.newBuilder()
-                .setNamespace(namespace)
+                .setNamespace(resolvedNamespace)
                 .setPageSize(pageSize)
                 .setQuery(query);
 
@@ -240,11 +267,26 @@ public class WorkflowManagerController {
     @GetMapping("/terminate")
     public ResponseEntity<ActionStatus> terminateWorkflow(
             @RequestParam(defaultValue = "default") String workflowId,
-                @RequestParam(defaultValue = "") String reason
+            @RequestParam(defaultValue = "") String workflowCode,
+            @RequestParam(required = false) String workspaceId,
+            @RequestParam(required = false) String namespace,
+            @RequestParam(defaultValue = "") String reason
     ) {
-        WorkflowServiceStubs service = WorkflowServiceStubs.newLocalServiceStubs();
-        WorkflowClient client = WorkflowClient.newInstance(service);
+        String resolvedNamespace = namespace;
+        if (resolvedNamespace == null || resolvedNamespace.isEmpty()) {
+            if (workspaceId != null && !workspaceId.isEmpty()) {
+                Optional<WorkSpaceEntity> ws = workspaceRepository.findByCode(workspaceId);
+                if (ws.isPresent()) {
+                    resolvedNamespace = ws.get().getTemporalNamespace();
+                }
+            }
+        }
 
+        if (resolvedNamespace == null || resolvedNamespace.isEmpty()) {
+            resolvedNamespace = getWorkspaceNamespaceForWorkflow(workflowCode);
+        }
+
+        WorkflowClient client = workflowClientFactory.createClient(resolvedNamespace);
 
         // Hard terminate the workflow
         WorkflowStub stb = client.newUntypedWorkflowStub(workflowId);
@@ -267,7 +309,8 @@ public class WorkflowManagerController {
 
     @GetMapping("/getStepsStatus")
     public ResponseEntity<ActionStatus> getStepsStatus(
-            @RequestParam(defaultValue = "default") String workflowId
+            @RequestParam(defaultValue = "default") String workflowId,
+            @RequestParam(required = false) String namespace
     ) {
         ActionStatus res = new ActionStatus();
         if(workflowId== null || workflowId.isEmpty() ){
@@ -275,7 +318,16 @@ public class WorkflowManagerController {
             res.setErrorMessage("Workflow id if required!");
             return new ResponseEntity<>(res, HttpStatus.BAD_REQUEST);
         }
-        WorkflowClient client = WorkflowClient.newInstance(service);
+
+        String resolvedNamespace = namespace;
+        if (namespace != null && !namespace.isEmpty()) {
+            Optional<WorkSpaceEntity> ws = workspaceRepository.findByCode(namespace);
+            if (ws.isPresent()) {
+                resolvedNamespace = ws.get().getTemporalNamespace();
+            }
+        }
+
+        WorkflowClient client = workflowClientFactory.createClient(resolvedNamespace);
         WorkflowStub stub = client.newUntypedWorkflowStub(workflowId);
 
         try {
@@ -307,8 +359,11 @@ public class WorkflowManagerController {
         }
         WorkflowResultModel result =  stub.query("getStatus", WorkflowResultModel.class);
         List<WorkflowResultModel.NodeResult> nodeResultList = result.getNodeResultList();
+        
+        // Use the same namespace for describe operation
+        String describeNamespace = (resolvedNamespace != null && !resolvedNamespace.isEmpty()) ? resolvedNamespace : "default";
         DescribeWorkflowExecutionRequest req =  DescribeWorkflowExecutionRequest.newBuilder()
-                .setNamespace("default").setExecution(
+                .setNamespace(describeNamespace).setExecution(
                         WorkflowExecution.newBuilder().setWorkflowId(workflowId))
                 .build();
 
@@ -366,4 +421,49 @@ public class WorkflowManagerController {
         }
         return new ResponseEntity<>(res, HttpStatus.OK);
     }
+
+    @GetMapping("/getAllCounts")
+    public ResponseEntity getAllCounts(@RequestParam(required = false) String namespace) {
+        String resolvedNamespace = "default";
+        if (namespace != null && !namespace.isEmpty()) {
+            var ws = workspaceRepository.findByCode(namespace);
+            if (ws.isPresent()) {
+                resolvedNamespace = ws.get().getTemporalNamespace();
+            }
+        }
+        WorkflowStatusCountService metrics = new WorkflowStatusCountService(resolvedNamespace);
+        HashMap<String, Integer> d = new HashMap<>();
+        metrics
+                .getWorkflowStatusCounts()
+                .forEach(
+                        (status, count) -> {
+                            d.put(status.name().replace("WORKFLOW_EXECUTION_STATUS_", ""), count);
+                        });
+
+        return new ResponseEntity<>(d, HttpStatus.OK);
+    }
+
+    /**
+     * Helper method to retrieve workspace namespace for a workflow
+     */
+    private String getWorkspaceNamespaceForWorkflow(String workflowCode) {
+        if (workflowCode == null || workflowCode.isEmpty()) {
+            return null; // Will fall back to default
+        }
+        
+        try {
+            WorkflowResponseWrapper wrapper = workflowsService.runController(
+                new WorkFlowManagerRequest() {{
+                    setWorkflowCode(workflowCode);
+                }}
+            );
+            return wrapper.getWorkspaceNamespace();
+        } catch (Exception e) {
+            System.err.println("Warning: Failed to retrieve workspace namespace for workflow " + workflowCode + ": " + e.getMessage());
+        }
+        
+        return null; // Fall back to default
+    }
+
+
 }

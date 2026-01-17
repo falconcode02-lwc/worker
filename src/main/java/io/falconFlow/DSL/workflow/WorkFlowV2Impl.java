@@ -34,8 +34,8 @@ import io.temporal.workflow.Async;
 import io.temporal.workflow.Promise;
 import org.thymeleaf.util.StringUtils;
 
-@WorkflowImpl
-// @WorkflowImpl(taskQueues = "MICROSERVICE_TASK_QUEUE_V2")
+//@WorkflowImpl
+@WorkflowImpl()
 public class WorkFlowV2Impl implements IWorkFlowv2 {
   private static final ObjectMapper mapper = new ObjectMapper();
 
@@ -251,8 +251,12 @@ public class WorkFlowV2Impl implements IWorkFlowv2 {
                       .setBackoffCoefficient(cfg != null ? cfg.getBackoffCoefficient() : 2.0)
                       .build();
 
+      String namespace = Workflow.getInfo().getNamespace();
+      String taskQueueName = (namespace != null && !namespace.equals("default")) ? namespace : "FalconFlow";
+
       ActivityOptions options =
               ActivityOptions.newBuilder()
+                      .setTaskQueue(taskQueueName)
                       .setSummary(type + "::" + (isConditionInline ? "Inline Condition" : conditionalCall))
                       .setStartToCloseTimeout(timeout)
                       .setRetryOptions(retryOptions)

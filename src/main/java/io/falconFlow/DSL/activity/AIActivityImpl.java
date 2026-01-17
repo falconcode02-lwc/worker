@@ -28,7 +28,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 @Component
-@ActivityImpl(taskQueues = "MICROSERVICE_TASK_QUEUE_V2")
+@ActivityImpl()
 public class AIActivityImpl implements AIActivity {
 
     private static final ObjectMapper mapper = new ObjectMapper();

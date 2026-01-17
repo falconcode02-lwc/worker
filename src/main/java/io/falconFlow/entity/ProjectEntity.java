@@ -1,5 +1,6 @@
 package io.falconFlow.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 import jakarta.persistence.*;
@@ -10,6 +11,7 @@ import java.util.UUID;
 
 @Entity
 @Table(name = "ff_projects")
+@JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
 public class ProjectEntity {
 
     @Id
@@ -46,6 +48,7 @@ public class ProjectEntity {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "workspace_id", nullable = false)
+    @JsonIgnoreProperties({"projects", "hibernateLazyInitializer", "handler"})
     private WorkSpaceEntity workspace;
 
     @OneToMany(
@@ -53,6 +56,7 @@ public class ProjectEntity {
             cascade = CascadeType.ALL,
             orphanRemoval = true
     )
+    @JsonIgnoreProperties({"project", "hibernateLazyInitializer", "handler"})
     private List<WorkFlowsEntity> workflows = new ArrayList<>();
 
     // Getters & Setters

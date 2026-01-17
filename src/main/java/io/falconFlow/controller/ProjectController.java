@@ -1,8 +1,11 @@
 package io.falconFlow.controller;
 
 import io.falconFlow.entity.ProjectEntity;
+import io.falconFlow.entity.WorkSpaceEntity;
 import io.falconFlow.repository.ProjectRepository;
+import io.falconFlow.repository.WorkspaceRepository;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import java.util.List;
@@ -16,12 +19,21 @@ public class ProjectController {
     @Autowired
     private ProjectRepository projectRepository;
 
+    @Autowired
+    private WorkspaceRepository workspaceRepository;
+
     // CREATE - POSTMAN POST
     @PostMapping
     public ResponseEntity<ProjectEntity> create(@RequestBody ProjectEntity project) {
-        project.setWorkspaceCode("DEV_WORKSPACE");
+        String workspaceCode = project.getWorkspaceCode();
+
+        
+        WorkSpaceEntity workSpace = workspaceRepository.findByCode(workspaceCode)
+                .orElseThrow(() -> new RuntimeException("Workspace not found: " + workspaceCode));
+        
+        project.setWorkspace(workSpace);
         ProjectEntity saved = projectRepository.save(project);
-        return ResponseEntity.ok(saved);
+        return ResponseEntity.status(HttpStatus.CREATED).body(saved);
     }
 
     // LIST ALL - POSTMAN GET

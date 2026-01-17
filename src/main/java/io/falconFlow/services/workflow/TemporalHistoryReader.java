@@ -1,6 +1,7 @@
 package io.falconFlow.services.workflow;
 
 import com.google.protobuf.ByteString;
+import io.falconFlow.repository.WorkspaceRepository;
 import io.temporal.api.common.v1.WorkflowExecution;
 import io.temporal.api.enums.v1.HistoryEventFilterType;
 import io.temporal.api.failure.v1.Failure;
@@ -8,6 +9,7 @@ import io.temporal.api.history.v1.History;
 import io.temporal.api.workflow.v1.PendingActivityInfo;
 import io.temporal.api.workflowservice.v1.*;
 import io.temporal.serviceclient.WorkflowServiceStubs;
+import org.springframework.beans.factory.annotation.Autowired;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -17,9 +19,10 @@ import java.util.Map;
 public class TemporalHistoryReader {
 
   private final WorkflowServiceStubs service;
-
-  public TemporalHistoryReader(WorkflowServiceStubs service) {
+  private  final  WorkspaceRepository workspaceRepository;
+  public TemporalHistoryReader(WorkflowServiceStubs service,  WorkspaceRepository workspaceRepository) {
     this.service = service;
+    this.workspaceRepository = workspaceRepository;
   }
 
   /**
@@ -29,7 +32,12 @@ public class TemporalHistoryReader {
   public History getFullHistory(String namespace, String workflowId, String runId)
       throws Exception {
 
-
+      if (namespace != null && !namespace.isEmpty()) {
+          var ws = workspaceRepository.findByCode(namespace);
+          if (ws.isPresent()) {
+              namespace = ws.get().getTemporalNamespace();
+          }
+      }
 
     ByteString nextPageToken = ByteString.EMPTY;
     History history;

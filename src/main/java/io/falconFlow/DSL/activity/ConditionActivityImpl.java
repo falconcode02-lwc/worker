@@ -13,7 +13,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 @Component
-@ActivityImpl(taskQueues = "MICROSERVICE_TASK_QUEUE_V2")
+@ActivityImpl
 public class ConditionActivityImpl implements ConditionActivity {
 
   @Autowired private BeanFetcher serviceFetcher;

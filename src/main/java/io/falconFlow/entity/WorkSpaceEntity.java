@@ -1,5 +1,6 @@
 package io.falconFlow.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
 
 import java.util.ArrayList;
@@ -11,6 +12,7 @@ import java.util.UUID;
         name = "ff_workspaces",
         uniqueConstraints = {@UniqueConstraint(name = "ff_workspaces_code_UN", columnNames = "code")}
 )
+@JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
 public class WorkSpaceEntity extends AuditableEntity{
     @Id
     @Column(nullable = false, updatable = false)
@@ -45,6 +47,7 @@ public class WorkSpaceEntity extends AuditableEntity{
             cascade = CascadeType.ALL,
             orphanRemoval = true
     )
+    @JsonIgnoreProperties({"workspace", "hibernateLazyInitializer", "handler"})
     private List<ProjectEntity> projects = new ArrayList<>();
 
     @PrePersist

@@ -10,6 +10,8 @@ import io.falconFlow.model.MCPToolDefinition;
 import io.falconFlow.model.PluginMethodModel;
 import io.falconFlow.model.PluginSecretModel;
 import io.falconFlow.repository.PluginRepository;
+import io.falconFlow.repository.ProjectRepository;
+import io.falconFlow.repository.WorkspaceRepository;
 import org.springframework.aop.support.AopUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationContext;
@@ -30,6 +32,12 @@ public class PluginManagerService {
 
     @Autowired
     ObjectMapper mapper;
+
+    @Autowired
+    private WorkspaceRepository workspaceRepository;
+
+    @Autowired
+    private ProjectRepository projectRepository;
 
 	@Autowired
 	public PluginManagerService(PluginRepository pluginRepository, MCPToolRegistry registry) {
@@ -55,6 +63,7 @@ public class PluginManagerService {
 		// ensure pluginId uniqueness may be enforced by DB constraint
 		PluginEntity entity = pluginDto.toEntity();
 		entity.setActive(true);
+        attachWorkspaceAndProject(entity, pluginDto.getWorkspaceCode(), pluginDto.getProjectCode());
 		PluginEntity saved = pluginRepository.save(entity);
 		return PluginDto.fromEntity(saved);
 	}
@@ -69,8 +78,11 @@ public class PluginManagerService {
 			if (updateDto.getPluginDocument() != null) existing.setPluginDocument(updateDto.getPluginDocument());
 			if (updateDto.getProps() != null) existing.setProps(decodeBase64(updateDto.getProps()));
             if (updateDto.getSecrets() != null) existing.setSecrets(decodeBase64(updateDto.getSecrets()));
-		 	if (updateDto.getIcon() != null) existing.setIcon(updateDto.getIcon());
+			if (updateDto.getIcon() != null) existing.setIcon(updateDto.getIcon());
             if (updateDto.getPluginType() != null) existing.setPluginType(updateDto.getPluginType());
+            if (updateDto.getWorkspaceCode() != null) existing.setWorkspaceCode(updateDto.getWorkspaceCode());
+            if (updateDto.getProjectCode() != null) existing.setProjectCode(updateDto.getProjectCode());
+            attachWorkspaceAndProject(existing, updateDto.getWorkspaceCode(), updateDto.getProjectCode());
 			existing.setActive(updateDto.isActive());
 			PluginEntity saved = pluginRepository.save(existing);
 			return PluginDto.fromEntity(saved);
@@ -154,6 +166,9 @@ public class PluginManagerService {
             saved.setAiTool(pluginDto.isAiTool());
             if (pluginDto.getResources() != null) saved.setResources(pluginDto.getResources());
             if (pluginDto.getPluginType() != null) saved.setPluginType(pluginDto.getPluginType());
+            if (pluginDto.getWorkspaceCode() != null) saved.setWorkspaceCode(pluginDto.getWorkspaceCode());
+            if (pluginDto.getProjectCode() != null) saved.setProjectCode(pluginDto.getProjectCode());
+            attachWorkspaceAndProject(saved, pluginDto.getWorkspaceCode(), pluginDto.getProjectCode());
             saved.setActive(true);
             saved = pluginRepository.save(saved);
         } else {
@@ -174,6 +189,9 @@ public class PluginManagerService {
             p.setAiTool(pluginDto.isAiTool());
             p.setResources(pluginDto.getResources());
             if (pluginDto.getPluginType() != null) p.setPluginType(pluginDto.getPluginType());
+            p.setWorkspaceCode(pluginDto.getWorkspaceCode());
+            p.setProjectCode(pluginDto.getProjectCode());
+            attachWorkspaceAndProject(p, pluginDto.getWorkspaceCode(), pluginDto.getProjectCode());
             p.setActive(true);
             saved = pluginRepository.save(p);
         }
@@ -208,6 +226,16 @@ public class PluginManagerService {
 			return encoded;
 		}
 	}
+
+    private void attachWorkspaceAndProject(PluginEntity entity, String workspaceCode, String projectCode) {
+        if (workspaceCode != null && !workspaceCode.isBlank()) {
+            workspaceRepository.findByCode(workspaceCode).ifPresent(entity::setWorkspace);
+        }
+        if (projectCode != null && !projectCode.isBlank()) {
+            projectRepository.findByCodeAndWorkspaceCode(projectCode, workspaceCode != null ? workspaceCode : entity.getWorkspaceCode())
+                    .ifPresent(entity::setProject);
+        }
+    }
 
     public PluginSecretModel getSecret(String pluginId){
        Optional<PluginEntity> pluginEntity =  pluginRepository.findByPluginId(pluginId);
