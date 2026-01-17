@@ -1,8 +1,6 @@
 package io.falconFlow.interfaces;
 
-import io.falconFlow.DSL.model.InputMap;
-import io.falconFlow.DSL.model.State;
-import io.falconFlow.DSL.model.Vault;
+import io.falconFlow.DSL.model.*;
 import io.falconFlow.DSL.workflow.model.StateModel;
 
 import java.util.Map;
