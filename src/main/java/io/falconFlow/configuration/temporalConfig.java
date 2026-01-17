@@ -9,6 +9,7 @@ import io.falconFlow.DSL.workflow.WorkFlowV2Impl;
 import io.temporal.client.WorkflowClient;
 import io.temporal.worker.Worker;
 import io.temporal.worker.WorkerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Bean;
@@ -20,18 +21,23 @@ public class temporalConfig {
     @Value("${spring.workflowTaskQueue}")
     private String taskQueue;
 
+    @Autowired
+    ApplicationContext applicationContext;
+
     @Bean
     public WorkerFactory workerFactory(WorkflowClient workflowClient) {
         WorkerFactory factory = WorkerFactory.newInstance(workflowClient);
         Worker worker = factory.newWorker(taskQueue);
         worker.registerWorkflowImplementationTypes(WorkFlowV2Impl.class, ScheduleWorkflowImpl.class);
 
+
 //        worker.registerActivitiesImplementations(
+//                applicationContext.getBean(FunctionActivityImpl.class)
 //                applicationContext.getBean(PreScheduleActivityImpl.class),
 //                applicationContext.getBean(ConditionActivityImpl.class),
 //                applicationContext.getBean(FunctionActivityImpl.class),
 //                applicationContext.getBean(ConditionEntryActivityImpl.class)
-//        );
+     //   );
 
 
         factory.start();

@@ -29,7 +29,26 @@ public interface WorkflowsRepository extends JpaRepository<WorkFlowsEntity, Inte
     @Query(value = "select id,name,code from ff_workflows where active = true", nativeQuery = true)
     List<WorkflowsNameDTO> findActiveWorkflows();
 
+    @Query("SELECT w.id as id, w.name as name, w.code as code FROM WorkFlowsEntity w " +
+           "LEFT JOIN w.project p " +
+           "LEFT JOIN p.workspace ws " +
+           "WHERE w.active = true " +
+           "AND (:workspaceCode IS NULL OR ws.code = :workspaceCode) " +
+           "AND (:projectId IS NULL OR p.id = :projectId)")
+    List<WorkflowsNameDTO> findActiveWorkflowsFiltered(@Param("workspaceCode") String workspaceCode, @Param("projectId") java.util.UUID projectId);
 
+    @Query("SELECT w FROM WorkFlowsEntity w " +
+           "LEFT JOIN FETCH w.project p " +
+           "LEFT JOIN FETCH p.workspace ws " +
+           "WHERE w.code = :code AND w.active = true")
+    java.util.Optional<WorkFlowsEntity> findEntityByCode(@Param("code") String code);
+
+    @Query("SELECT w FROM WorkFlowsEntity w " +
+           "LEFT JOIN w.project p " +
+           "LEFT JOIN p.workspace ws " +
+           "WHERE (:workspaceCode IS NULL OR ws.code = :workspaceCode) " +
+           "AND (:projectId IS NULL OR p.id = :projectId)")
+    List<WorkFlowsEntity> findAllFiltered(@Param("workspaceCode") String workspaceCode, @Param("projectId") java.util.UUID projectId);
 }
 
 

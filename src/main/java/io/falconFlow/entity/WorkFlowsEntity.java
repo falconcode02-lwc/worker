@@ -1,4 +1,5 @@
 package io.falconFlow.entity;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
@@ -15,6 +16,7 @@ import java.time.ZoneId;
     name = "ff_workflows",
     uniqueConstraints = {@UniqueConstraint(name = "ff_functions_UN", columnNames = "code")}
 )
+@JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
 public class WorkFlowsEntity {
 
   @Id
@@ -58,6 +60,11 @@ private boolean active = true;
 
   @Column(name = "modifiedTime")
   private LocalDateTime modifiedTime;
+
+  @ManyToOne(fetch = FetchType.LAZY)
+  @JoinColumn(name = "project_id")
+  @JsonIgnoreProperties({"workflows", "hibernateLazyInitializer", "handler"})
+  private ProjectEntity project;
 
   @PrePersist
   public void prePersist() {
@@ -162,5 +169,13 @@ private boolean active = true;
 
     public void setController(String controller) {
         this.controller = controller;
+    }
+
+    public ProjectEntity getProject() {
+        return project;
+    }
+
+    public void setProject(ProjectEntity project) {
+        this.project = project;
     }
 }

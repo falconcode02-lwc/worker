@@ -69,4 +69,23 @@ public class CompilerRequest {
   public void setVersion(String version) {
     this.version = version;
   }
+
+  private String workspaceCode;
+  private String projectCode;
+
+  public String getWorkspaceCode() {
+    return workspaceCode;
+  }
+
+  public void setWorkspaceCode(String workspaceCode) {
+    this.workspaceCode = workspaceCode;
+  }
+
+  public String getProjectCode() {
+    return projectCode;
+  }
+
+  public void setProjectCode(String projectCode) {
+    this.projectCode = projectCode;
+  }
 }

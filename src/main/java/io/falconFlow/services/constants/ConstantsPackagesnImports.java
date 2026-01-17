@@ -1,5 +1,7 @@
 package io.falconFlow.services.constants;
 
+
+
 public class ConstantsPackagesnImports {
 
   public static final String modelPackage =
@@ -8,7 +10,6 @@ public class ConstantsPackagesnImports {
           + "import java.time.LocalDateTime;\n"
           + "import java.time.LocalDate;\n"
           + "import java.util.*;\n";
-
 
   public static final String functionsPackage =
             "package io.falconFlow.functions;\n"
@@ -29,7 +30,8 @@ public class ConstantsPackagesnImports {
           + "import io.falconFlow.DSL.utils.HandlebarsUtil;\n"
           + "import java.util.ArrayList;\n"
           + "import com.google.gson.JsonObject;\n"
-          + "import com.google.gson.JsonArray;\n";
+          + "import com.google.gson.JsonArray;\n"
+          + "import io.falconFlow.interfaces.enums.PluginType;\n";
 
 
 }

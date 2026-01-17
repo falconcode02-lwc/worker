@@ -1,6 +1,7 @@
 package io.falconFlow.services.isolateservices;
 
 import io.falconFlow.entity.PluginEntity;
+import io.falconFlow.interfaces.enums.PluginType;
 
 import java.time.Instant;
 
@@ -25,6 +26,9 @@ public class PluginDto {
     private String aiToolDescription;
     private boolean aiTool;
     private String resources;
+    private PluginType pluginType;
+    private String workspaceCode;
+    private String projectCode;
 
     public PluginDto() {}
 
@@ -42,7 +46,11 @@ public class PluginDto {
     d.setProps(e.getProps());
         d.setSecrets(e.getSecrets());
     d.setRawClass(e.getRawClass());
+    d.setRawClass(e.getRawClass());
     d.setResources(e.getResources());
+    d.setPluginType(e.getPluginType());
+    d.setWorkspaceCode(e.getWorkspaceCode());
+    d.setProjectCode(e.getProjectCode());
 
     // rawProcessClass may be null if not present in entity
     try { d.setRawProcessClass(e.getRawProcessClass()); } catch (Throwable t) { /* ignore */ }
@@ -66,7 +74,13 @@ public class PluginDto {
         e.setRawClass(this.rawClass);
         e.setAiTool(this.aiTool);
         e.setAiToolDescription(this.aiToolDescription);
+        e.setAiToolDescription(this.aiToolDescription);
         e.setResources(this.resources);
+        if(this.pluginType != null){
+            e.setPluginType(this.pluginType);
+        }
+        e.setWorkspaceCode(this.workspaceCode);
+        e.setProjectCode(this.projectCode);
     try { e.setRawProcessClass(this.rawProcessClass); } catch (Throwable t) { /* ignore */ }
         e.setIcon(this.icon);
         e.setActive(this.active);
@@ -139,5 +153,29 @@ public class PluginDto {
 
     public void setResources(String resources) {
         this.resources = resources;
+    }
+
+    public PluginType getPluginType() {
+        return pluginType;
+    }
+
+    public void setPluginType(PluginType pluginType) {
+        this.pluginType = pluginType;
+    }
+
+    public String getWorkspaceCode() {
+        return workspaceCode;
+    }
+
+    public void setWorkspaceCode(String workspaceCode) {
+        this.workspaceCode = workspaceCode;
+    }
+
+    public String getProjectCode() {
+        return projectCode;
+    }
+
+    public void setProjectCode(String projectCode) {
+        this.projectCode = projectCode;
     }
 }

@@ -11,6 +11,8 @@ import io.falconFlow.entity.FunctionsHitoryEntity;
 import io.falconFlow.helpers.Checksum;
 import io.falconFlow.helpers.CompilationException;
 import io.falconFlow.helpers.ObjectUtil;
+import io.falconFlow.repository.ProjectRepository;
+import io.falconFlow.repository.WorkspaceRepository;
 import io.falconFlow.services.falconparser.ClassExtractor;
 import io.falconFlow.services.falconparser.FalconFlowParser;
 import io.falconFlow.services.genservice.ClassTypeService;
@@ -40,6 +42,10 @@ public class CompileController {
   @Autowired FunctionService functionDbService;
 
   @Autowired ClassTypeService classTypeService;
+
+  @Autowired WorkspaceRepository workspaceRepository;
+
+  @Autowired ProjectRepository projectRepository;
 
   @PostMapping(
       value = "/compile",
@@ -117,6 +123,16 @@ public class CompileController {
       ett.setChecksum(checkSum);
       ett.setClassType(reqParser.getClassType());
       ett.setRawClass(reqParser.getEncodedFile());
+      ett.setWorkspaceCode(reqParser.getWorkspaceCode());
+      ett.setProjectCode(reqParser.getProjectCode());
+
+      if (reqParser.getWorkspaceCode() != null && !reqParser.getWorkspaceCode().isBlank()) {
+          workspaceRepository.findByCode(reqParser.getWorkspaceCode()).ifPresent(ett::setWorkspace);
+      }
+      if (reqParser.getProjectCode() != null && !reqParser.getProjectCode().isBlank()) {
+          projectRepository.findByCodeAndWorkspaceCode(reqParser.getProjectCode(), reqParser.getWorkspaceCode())
+                  .ifPresent(ett::setProject);
+      }
 
       FunctionsEntity ert = functionDbService.saveFunction(ett);
       res.setId(ert.getId());

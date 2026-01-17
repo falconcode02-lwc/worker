@@ -11,6 +11,7 @@ import io.falconFlow.dto.WorkflowsDTO;
 import io.falconFlow.dto.WorkflowsNameDTO;
 import io.falconFlow.entity.WorkFlowsEntity;
 import io.falconFlow.interfaces.IController;
+import io.falconFlow.repository.ProjectRepository;
 import io.falconFlow.repository.WorkflowsRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -27,16 +28,37 @@ public class WorkflowsService {
 
     @Autowired
     private WorkflowsRepository workflowRepository;
+    @Autowired
+    private ProjectRepository projectRepository;
     @Autowired private BeanFetcher serviceFetcher;
 
     public WorkFlowsEntity create(WorkFlowsEntity entity) {
        return workflowRepository.save(entity);
     }
 
+    public WorkFlowsEntity create(WorkFlowsEntity entity, UUID projectId) {
+        if (projectId != null) {
+            io.falconFlow.entity.ProjectEntity project = projectRepository.findById(projectId)
+                    .orElseThrow(() -> new RuntimeException("Project not found with ID: " + projectId));
+            entity.setProject(project);
+        }
+        return workflowRepository.save(entity);
+    }
+
+    public List<WorkflowsDTO> findAll(String workspaceCode, UUID projectId) {
+        return workflowRepository.findAllFiltered(workspaceCode, projectId).stream()
+                .map(this::mapToDTO)
+                .collect(Collectors.toList());
+    }
+
     public List<WorkflowsDTO> findAll() {
         return workflowRepository.findAll().stream()
                 .map(this::mapToDTO)
                 .collect(Collectors.toList());
+    }
+
+    public List<WorkflowsNameDTO> findAllActive(String workspaceCode, UUID projectId) {
+        return workflowRepository.findActiveWorkflowsFiltered(workspaceCode, projectId);
     }
 
     public List<WorkflowsNameDTO> findAllActive() {
@@ -52,6 +74,18 @@ public class WorkflowsService {
     public GetWorkFlowsProjection findByCode(String workflowCode) {
         return workflowRepository.findByCode(workflowCode);
 
+    }
+
+    public WorkFlowsEntity update(Integer id, WorkFlowsEntity entity, UUID projectId) {
+        WorkFlowsEntity entity1 = workflowRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Workflow not found with ID: " + id));
+
+        if (projectId != null) {
+            io.falconFlow.entity.ProjectEntity project = projectRepository.findById(projectId)
+                    .orElseThrow(() -> new RuntimeException("Project not found with ID: " + projectId));
+            entity.setProject(project);
+        }
+        return workflowRepository.save(entity);
     }
 
     public WorkFlowsEntity update(Integer id, WorkFlowsEntity entity) {
@@ -105,6 +139,18 @@ public class WorkflowsService {
             return responseWrapper;
         }
 
+        // Retrieve workspace namespace from workflow entity
+        String workspaceNamespace = null;
+        try {
+            WorkFlowsEntity entity = workflowRepository.findEntityByCode(proj.getCode())
+                    .orElse(null);
+            if (entity != null && entity.getProject() != null && entity.getProject().getWorkspace() != null) {
+                workspaceNamespace = entity.getProject().getWorkspace().getTemporalNamespace();
+            }
+        } catch (Exception e) {
+            System.err.println("Warning: Failed to retrieve workspace namespace: " + e.getMessage());
+            // Continue with null namespace (will fall back to default)
+        }
 
         if(proj.getController() != null && !proj.getController().isEmpty()){
             var request = new FCreateRequest();
@@ -147,6 +193,7 @@ public class WorkflowsService {
         responseWrapper.setWorkflowCode(proj.getCode());
         responseWrapper.setWorkflowDefId(proj.getId().toString());
         responseWrapper.setWorkflowJson(proj.getWorkflowJson());
+        responseWrapper.setWorkspaceNamespace(workspaceNamespace);
         responseWrapper.setCreateResponse(res);
         return responseWrapper;
 

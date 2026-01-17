@@ -11,6 +11,7 @@ public class WorkflowResponseWrapper {
     private String workflowCode;
     private String workSpaceId;
     private String projectId;
+    private String workspaceNamespace;
 
     public String getWorkflowJson() {
         return workflowJson;
@@ -58,5 +59,13 @@ public class WorkflowResponseWrapper {
 
     public void setProjectId(String projectId) {
         this.projectId = projectId;
+    }
+
+    public String getWorkspaceNamespace() {
+        return workspaceNamespace;
+    }
+
+    public void setWorkspaceNamespace(String workspaceNamespace) {
+        this.workspaceNamespace = workspaceNamespace;
     }
 }

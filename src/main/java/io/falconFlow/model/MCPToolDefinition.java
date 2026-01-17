@@ -6,7 +6,7 @@ import java.util.Map;
 public class MCPToolDefinition {
     private String name;
     private String description;
-    private Map<String, String> inputSchema;
+    private Map<String, Map<String, String>> inputSchema;
     private Method method;
     private Object bean;
 
@@ -27,11 +27,11 @@ public class MCPToolDefinition {
         this.description = description;
     }
 
-    public Map<String, String> getInputSchema() {
+    public Map<String, Map<String, String>> getInputSchema() {
         return inputSchema;
     }
 
-    public void setInputSchema(Map<String, String> inputSchema) {
+    public void setInputSchema(Map<String, Map<String, String>> inputSchema) {
         this.inputSchema = inputSchema;
     }
 

@@ -3,6 +3,7 @@ package io.falconFlow.DSL.workflow.model;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import io.falconFlow.DSL.workflow.helpers.ActivityType;
 import io.falconFlow.DSL.model.InputMap;
+import io.falconFlow.model.PluginMethodModel;
 import io.temporal.api.update.v1.Input;
 
 import java.util.List;
@@ -85,6 +86,8 @@ public class WorkflowModel {
     private String id;
     private ActivityType type;
     private String name;
+    private AI ai;
+    private PluginMethodModel resource;
     private String[] call;
     private String signalName;
     private String conditionCall;
@@ -115,20 +118,28 @@ public class WorkflowModel {
         this.error = error;
     }
 
-        public Switches[] getSwitchval() {
-            return switchval;
-        }
+    public Switches[] getSwitchval() {
+        return switchval;
+    }
 
-        public void setSwitchval(Switches[] switchval) {
-            this.switchval = switchval;
-        }
+    public void setSwitchval(Switches[] switchval) {
+        this.switchval = switchval;
+    }
 
-        public Map<String, Object> getMetaData() {
-            return metaData;
-        }
+    public Map<String, Object> getMetaData() {
+        return metaData;
+    }
 
-        public void setMetaData(Map<String, Object> metaData) {
+    public void setMetaData(Map<String, Object> metaData) {
             this.metaData = metaData;
+        }
+
+        public PluginMethodModel getResource() {
+            return resource;
+        }
+
+        public void setResource(PluginMethodModel resource) {
+            this.resource = resource;
         }
 
         // Getters and Setters
@@ -180,17 +191,17 @@ public class WorkflowModel {
       this.call = call;
     }
 
-        public InputMap getPluginprop() {
-            return pluginprop;
-        }
-
-        public void setData(InputMap pluginprop) {
-            this.pluginprop = pluginprop;
-        }
-
-        public Config getConfig() {
-      return config;
+    public InputMap getPluginprop() {
+        return pluginprop;
     }
+
+    public void setData(InputMap pluginprop) {
+        this.pluginprop = pluginprop;
+    }
+
+    public Config getConfig() {
+  return config;
+}
 
     public void setConfig(Config config) {
       this.config = config;
@@ -208,9 +219,15 @@ public class WorkflowModel {
       return nextFalse;
     }
 
+        public AI getAi() {
+            return ai;
+        }
 
+        public void setAi(AI ai) {
+            this.ai = ai;
+        }
 
-    public void setNextFalse(String nextFalse) {
+        public void setNextFalse(String nextFalse) {
       this.nextFalse = nextFalse;
     }
 
@@ -344,5 +361,34 @@ public static  class Switches{
 
   }
 
+  public static class AI {
+        private String aimodel;
+        private List<String> aitool;
+        private String aimemory;
+
+      public String getAimodel() {
+          return aimodel;
+      }
+
+      public void setAimodel(String aimodel) {
+          this.aimodel = aimodel;
+      }
+
+      public List<String> getAitool() {
+          return aitool;
+      }
+
+      public void setAitool(List<String> aitool) {
+          this.aitool = aitool;
+      }
+
+      public String getAimemory() {
+          return aimemory;
+      }
+
+      public void setAimemory(String aimemory) {
+          this.aimemory = aimemory;
+      }
+  }
 
 }

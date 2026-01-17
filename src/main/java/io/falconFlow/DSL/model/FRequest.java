@@ -24,6 +24,7 @@ public class FRequest{
   private Map<String, Object> previous;
   private String asyncId;
   private byte[] asyncToken;
+  private String aiToolDef;
 
     public String getActivityId() {
     return activityId;
@@ -137,5 +138,13 @@ public class FRequest{
 
     public void setAsyncToken(byte[] asyncToken) {
         this.asyncToken = asyncToken;
+    }
+
+    public String getAiToolDef() {
+        return aiToolDef;
+    }
+
+    public void setAiToolDef(String aiToolDef) {
+        this.aiToolDef = aiToolDef;
     }
 }

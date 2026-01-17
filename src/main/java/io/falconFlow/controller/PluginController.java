@@ -1,6 +1,7 @@
 package io.falconFlow.controller;
 
 import io.falconFlow.entity.PluginEntity;
+import io.falconFlow.interfaces.enums.PluginType;
 import io.falconFlow.repository.PluginRepository;
 import io.falconFlow.services.isolateservices.PluginDto;
 import io.falconFlow.services.isolateservices.PluginManagerService;
@@ -33,15 +34,25 @@ public class PluginController {
     @GetMapping
     public Page<PluginDto> list(
             @RequestParam(value = "q", required = false) String q,
+            @RequestParam(value = "pluginType", required = false) PluginType pluginType,
             @RequestParam(value = "page", defaultValue = "0") int page,
             @RequestParam(value = "size", defaultValue = "20") int size
     ) {
         Pageable pageable = PageRequest.of(Math.max(0, page), Math.max(1, size));
         Page<PluginEntity> ents;
-        if (q == null || q.isBlank()) {
-            ents = pluginRepository.findAll(pageable);
+        
+        if (pluginType != null) {
+            if (q != null && !q.isBlank()) {
+                ents = pluginRepository.findByPluginTypeAndQuery(pluginType, q, pageable);
+            } else {
+                ents = pluginRepository.findByPluginType(pluginType, pageable);
+            }
         } else {
-            ents = pluginRepository.findByPluginNameContainingIgnoreCaseOrPluginIdContainingIgnoreCase(q, q, pageable);
+            if (q == null || q.isBlank()) {
+                ents = pluginRepository.findAll(pageable);
+            } else {
+                ents = pluginRepository.findByPluginNameContainingIgnoreCaseOrPluginIdContainingIgnoreCase(q, q, pageable);
+            }
         }
         return ents.map(PluginDto::fromEntity);
     }

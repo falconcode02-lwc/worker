@@ -10,6 +10,8 @@ import io.falconFlow.model.MCPToolDefinition;
 import io.falconFlow.model.PluginMethodModel;
 import io.falconFlow.model.PluginSecretModel;
 import io.falconFlow.repository.PluginRepository;
+import io.falconFlow.repository.ProjectRepository;
+import io.falconFlow.repository.WorkspaceRepository;
 import org.springframework.aop.support.AopUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationContext;
@@ -30,6 +32,12 @@ public class PluginManagerService {
 
     @Autowired
     ObjectMapper mapper;
+
+    @Autowired
+    private WorkspaceRepository workspaceRepository;
+
+    @Autowired
+    private ProjectRepository projectRepository;
 
 	@Autowired
 	public PluginManagerService(PluginRepository pluginRepository, MCPToolRegistry registry) {
@@ -55,6 +63,7 @@ public class PluginManagerService {
 		// ensure pluginId uniqueness may be enforced by DB constraint
 		PluginEntity entity = pluginDto.toEntity();
 		entity.setActive(true);
+        attachWorkspaceAndProject(entity, pluginDto.getWorkspaceCode(), pluginDto.getProjectCode());
 		PluginEntity saved = pluginRepository.save(entity);
 		return PluginDto.fromEntity(saved);
 	}
@@ -69,7 +78,11 @@ public class PluginManagerService {
 			if (updateDto.getPluginDocument() != null) existing.setPluginDocument(updateDto.getPluginDocument());
 			if (updateDto.getProps() != null) existing.setProps(decodeBase64(updateDto.getProps()));
             if (updateDto.getSecrets() != null) existing.setSecrets(decodeBase64(updateDto.getSecrets()));
-		 	if (updateDto.getIcon() != null) existing.setIcon(updateDto.getIcon());
+			if (updateDto.getIcon() != null) existing.setIcon(updateDto.getIcon());
+            if (updateDto.getPluginType() != null) existing.setPluginType(updateDto.getPluginType());
+            if (updateDto.getWorkspaceCode() != null) existing.setWorkspaceCode(updateDto.getWorkspaceCode());
+            if (updateDto.getProjectCode() != null) existing.setProjectCode(updateDto.getProjectCode());
+            attachWorkspaceAndProject(existing, updateDto.getWorkspaceCode(), updateDto.getProjectCode());
 			existing.setActive(updateDto.isActive());
 			PluginEntity saved = pluginRepository.save(existing);
 			return PluginDto.fromEntity(saved);
@@ -152,6 +165,10 @@ public class PluginManagerService {
             if (pluginDto.getAiToolDescription() != null) saved.setResources(pluginDto.getResources());
             saved.setAiTool(pluginDto.isAiTool());
             if (pluginDto.getResources() != null) saved.setResources(pluginDto.getResources());
+            if (pluginDto.getPluginType() != null) saved.setPluginType(pluginDto.getPluginType());
+            if (pluginDto.getWorkspaceCode() != null) saved.setWorkspaceCode(pluginDto.getWorkspaceCode());
+            if (pluginDto.getProjectCode() != null) saved.setProjectCode(pluginDto.getProjectCode());
+            attachWorkspaceAndProject(saved, pluginDto.getWorkspaceCode(), pluginDto.getProjectCode());
             saved.setActive(true);
             saved = pluginRepository.save(saved);
         } else {
@@ -171,6 +188,10 @@ public class PluginManagerService {
             p.setAiToolDescription(pluginDto.getAiToolDescription());
             p.setAiTool(pluginDto.isAiTool());
             p.setResources(pluginDto.getResources());
+            if (pluginDto.getPluginType() != null) p.setPluginType(pluginDto.getPluginType());
+            p.setWorkspaceCode(pluginDto.getWorkspaceCode());
+            p.setProjectCode(pluginDto.getProjectCode());
+            attachWorkspaceAndProject(p, pluginDto.getWorkspaceCode(), pluginDto.getProjectCode());
             p.setActive(true);
             saved = pluginRepository.save(p);
         }
@@ -206,6 +227,16 @@ public class PluginManagerService {
 		}
 	}
 
+    private void attachWorkspaceAndProject(PluginEntity entity, String workspaceCode, String projectCode) {
+        if (workspaceCode != null && !workspaceCode.isBlank()) {
+            workspaceRepository.findByCode(workspaceCode).ifPresent(entity::setWorkspace);
+        }
+        if (projectCode != null && !projectCode.isBlank()) {
+            projectRepository.findByCodeAndWorkspaceCode(projectCode, workspaceCode != null ? workspaceCode : entity.getWorkspaceCode())
+                    .ifPresent(entity::setProject);
+        }
+    }
+
     public PluginSecretModel getSecret(String pluginId){
        Optional<PluginEntity> pluginEntity =  pluginRepository.findByPluginId(pluginId);
        if(pluginEntity!=null && pluginEntity.isPresent()){
@@ -230,14 +261,13 @@ public class PluginManagerService {
                 if (tool == null) continue;
                 MCPToolDefinition def = new MCPToolDefinition();
                 def.setName(clazz.getSimpleName() +":"+ method.getName());
-                def.setDescription(tool.descr());
+                def.setDescription(tool.description());
                 def.setMethod(method);
                 def.setBean(clazz.getSimpleName());
-                Map<String, String>  params = resolveSchema(method);
+                Map<String, Map<String, String>>  params = resolveSchema(method);
                 def.setInputSchema(params);
                 System.out.println("Name >>>>> " + def.getName());
                 System.out.println("Defination >>>>> " + def.getInputSchema());
-
 
                 // add method details
                 PluginMethodModel pluginMethodModel = new PluginMethodModel();
@@ -245,7 +275,8 @@ public class PluginManagerService {
                 pluginMethodModel.setName(def.getName());
                 pluginMethodModel.setProperties(params);
                 pluginMethodModel.setDisplayName(tool.name());
-                pluginMethodModel.setDescr(tool.descr());
+                pluginMethodModel.setDescription(tool.description());
+                pluginMethodModel.setSelected(tool.selected());
                 pluginMethodModelList.add(pluginMethodModel);
 
 
@@ -259,19 +290,74 @@ public class PluginManagerService {
         }
     }
 
-    private Map<String, String> resolveSchema(Method method) {
-        Map<String, String> schema = new LinkedHashMap<>();
+    private Map<String, Map<String, String>> resolveSchema(Method method) {
+        Map<String, Map<String, String>> schema = new LinkedHashMap<>();
         for (Parameter p : method.getParameters()) {
             FParam ann = p.getAnnotation(FParam.class);
+            Map<String, String> details = new HashMap<>();
+            details.put("type", resolveMcpType(p.getType()));
             if (ann != null) {
-                schema.put(ann.value(), p.getType().getSimpleName());
+                details.put("description", ann.description());
+                details.put("required", String.valueOf(ann.required()));
+                schema.put(ann.value(), details);
             } else {
-                schema.put(p.getName(), p.getType().getSimpleName());
+                details.put("required", "false");
+                schema.put(p.getName(), details);
             }
-
-
         }
+
         return schema;
     }
 
+
+
+    private String resolveMcpType(Class<?> type) {
+
+        // String / char
+        if (type == String.class || type == char.class || type == Character.class) {
+            return "string";
+        }
+
+        // Integers
+        if (type == int.class || type == Integer.class
+                || type == long.class || type == Long.class
+                || type == short.class || type == Short.class) {
+            return "integer";
+        }
+
+        // Floating point
+        if (type == float.class || type == Float.class
+                || type == double.class || type == Double.class) {
+            return "number";
+        }
+
+        // Boolean
+        if (type == boolean.class || type == Boolean.class) {
+            return "boolean";
+        }
+
+        // Enums
+        if (type.isEnum()) {
+            return "string";
+        }
+
+        // Arrays / collections
+        if (type.isArray() || Collection.class.isAssignableFrom(type)) {
+            return "array";
+        }
+
+        // Maps / objects
+        if (Map.class.isAssignableFrom(type)) {
+            return "object";
+        }
+
+        // Dates
+        if (java.time.temporal.Temporal.class.isAssignableFrom(type)
+                || java.util.Date.class.isAssignableFrom(type)) {
+            return "string";
+        }
+
+        // Fallback (POJO)
+        return "object";
+    }
 }

@@ -9,4 +9,6 @@ import java.lang.annotation.Target;
 @Retention(RetentionPolicy.RUNTIME)
 public @interface FParam {
     String value();
+    String description() default "";
+    boolean required() default false;
 }

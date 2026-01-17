@@ -12,6 +12,7 @@ import org.springframework.context.ApplicationListener;
 
 import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
 //@Component
@@ -50,7 +51,7 @@ public class MCPToolScanner implements ApplicationListener<ApplicationReadyEvent
 
                 MCPToolDefinition def = new MCPToolDefinition();
                 def.setName(method.getName());
-                def.setDescription(tool.descr());
+                def.setDescription(tool.description());
                 def.setMethod(method);
                 def.setBean(bean);
                 def.setInputSchema(resolveSchema(method));
@@ -60,17 +61,21 @@ public class MCPToolScanner implements ApplicationListener<ApplicationReadyEvent
         }
     }
 
-    private Map<String, String> resolveSchema(Method method) {
-        Map<String, String> schema = new LinkedHashMap<>();
+    private Map<String, Map<String, String>> resolveSchema(Method method) {
+        Map<String, Map<String, String>> schema = new LinkedHashMap<>();
         for (Parameter p : method.getParameters()) {
             FParam ann = p.getAnnotation(FParam.class);
+            Map<String, String> details = new HashMap<>();
             if (ann != null) {
-                schema.put(ann.value(), p.getType().getSimpleName());
+                details.put("type", p.getType().getSimpleName());
+                details.put("description", ann.description());
+                details.put("required", String.valueOf(ann.required()));
+                schema.put(ann.value(), details);
             } else {
-                schema.put(p.getName(), p.getType().getSimpleName());
+                details.put("type", p.getType().getSimpleName());
+                details.put("required", "false");
+                schema.put(p.getName(), details);
             }
-
-
         }
         return schema;
     }
