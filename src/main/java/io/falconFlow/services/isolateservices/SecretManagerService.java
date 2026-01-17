@@ -3,16 +3,17 @@ package io.falconFlow.services.isolateservices;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.falconFlow.configuration.CacheConfig;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import io.falconFlow.services.secret.SecretService;
 import io.falconFlow.entity.SecretEntity;
+import io.falconFlow.services.secret.vault.VaultReader;
+
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Locale;
 
 @Service
 public class SecretManagerService {
@@ -24,30 +25,60 @@ public class SecretManagerService {
 
 
 	public Map<String, Object> get(String name, String type) {
-		// Find secret by type and name
-        String val = this.getEncryptedValue(name, type);
-        if(val != null && !val.isEmpty()){
-            try {
-                String dscrVal = secretService.getDecreptedValue(val);
-                return objectMapper.readValue(dscrVal, Map.class);
-            } catch (JsonProcessingException e) {
+		// Find secret by type and name.
+		// NOTE: for non-DB vault types, ff_secrets.value is a reference (not encrypted JSON),
+		// so we must resolve it via VaultReader instead of decrypting.
+        Optional<SecretEntity> opt = secretService.findByTypeAndName(type, name);
+        if (opt.isEmpty()) {
+            return new HashMap<String, Object>();
+        }
+
+        SecretEntity entity = opt.get();
+        String vaultType = entity.getVaultType();
+        if (vaultType == null || vaultType.isBlank()) {
+            vaultType = "DB"; // backward compatibility
+        }
+
+        String jsonPayload;
+        if ("DB".equalsIgnoreCase(vaultType)) {
+            String encryptedOrPlain = entity.getValue();
+            if (encryptedOrPlain == null || encryptedOrPlain.isEmpty()) {
                 return new HashMap<String, Object>();
             }
-        }
-        return  new HashMap<String, Object>();
-	}
-
-    @Cacheable(value = CacheConfig.VaultCache, key = "#name + ':' + #type")
-    private String getEncryptedValue(String name, String type) {
-        // Find secret by type and name
-        Optional<SecretEntity> f = secretService.findByTypeAndName(type, name);
-        if(f.isPresent()){
-            String val = f.get().getValue();
-            if(val != null && !val.isEmpty()){
-                return val;
+            try {
+                jsonPayload = secretService.getDecreptedValue(encryptedOrPlain);
+            } catch (RuntimeException ex) {
+                // Fail-soft: don't break workflow execution due to one malformed secret.
+                return new HashMap<String, Object>();
+            }
+        } else {
+            try {
+                VaultReader reader = findReader(vaultType);
+                jsonPayload = reader.readSecret(entity.getName());
+            } catch (Exception ex) {
+                throw new RuntimeException("Failed to read secret from vault: " + vaultType, ex);
             }
         }
-        return null;
+
+        if (jsonPayload == null || jsonPayload.isEmpty()) {
+            return new HashMap<String, Object>();
+        }
+
+        try {
+            return objectMapper.readValue(jsonPayload, Map.class);
+        } catch (JsonProcessingException e) {
+            return new HashMap<String, Object>();
+        }
+	}
+
+    private VaultReader findReader(String vaultType) {
+        String normalized = (vaultType == null) ? "DB" : vaultType.trim().toUpperCase(Locale.ROOT);
+        for (VaultReader reader : vaultReaders) {
+            if (reader.supports(normalized)) {
+                return reader;
+            }
+        }
+        throw new IllegalArgumentException("No reader found for vault type: " + vaultType);
     }
 
 
@@ -60,18 +91,13 @@ public class SecretManagerService {
 
     }
 
-	// Stub for decryption logic. Replace with your actual decryption implementation.
-	private String decrypt(String value) {
-		// TODO: Implement real decryption
-		return value;
-	}
-
 	private final SecretService secretService;
+    private final List<VaultReader> vaultReaders;
 
-	@Autowired
-	public SecretManagerService(SecretService secretService) {
-		this.secretService = secretService;
-	}
+    public SecretManagerService(SecretService secretService, List<VaultReader> vaultReaders) {
+        this.secretService = secretService;
+        this.vaultReaders = vaultReaders;
+    }
 
 	/**
 	 * Returns all secrets as a HashMap where key is secret name and value is secret value.

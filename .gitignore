@@ -6,4 +6,9 @@ src/main/resources/application-postgres.properties
 src/main/resources/application.properties
 gradle
 .gradle
+.env
+.env.local
 
+# Vault config files with credentials
+src/main/resources/props-dev/vault/application-vault-azure.properties
+src/main/resources/props-prod/vault/application-vault-azure.properties

@@ -1,33 +1,42 @@
 package io.falconFlow.services.secret;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import io.falconFlow.configuration.CacheConfig;
-import io.falconFlow.entity.SecretEntity;
-import io.falconFlow.model.PluginSecretModel;
-import io.falconFlow.repository.SecretRepository;
-import io.falconFlow.services.isolateservices.PluginManagerService;
-import org.springframework.beans.TypeConverter;
+import java.time.Instant;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Optional;
+import java.util.stream.Collectors;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.CachePut;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 
-import java.time.Instant;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.concurrent.Flow;
-import java.util.stream.Collectors;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
+import io.falconFlow.configuration.CacheConfig;
+import io.falconFlow.entity.SecretEntity;
+import io.falconFlow.model.PluginSecretModel;
+import io.falconFlow.repository.SecretRepository;
+import io.falconFlow.services.isolateservices.PluginManagerService;
+import io.falconFlow.services.secret.vault.VaultReader;
+import io.falconFlow.services.secret.vault.VaultWriter;
 
 @Service
 public class SecretServiceImpl implements SecretService {
 
+    private static final Logger log = LoggerFactory.getLogger(SecretServiceImpl.class);
 
     private final SecretRepository secretRepository;
     private final CryptoService cryptoService;
+    private final Map<String, VaultWriter> vaultWriters;
+    private final List<VaultReader> vaultReaders;
 
     @Autowired
     ObjectMapper mapper;
@@ -37,20 +46,67 @@ public class SecretServiceImpl implements SecretService {
 
 
     @Autowired
-    public SecretServiceImpl(SecretRepository secretRepository, CryptoService cryptoService) {
+    public SecretServiceImpl(
+            SecretRepository secretRepository,
+            CryptoService cryptoService,
+            Map<String, VaultWriter> vaultWriters,
+            List<VaultReader> vaultReaders
+    ) {
         this.secretRepository = secretRepository;
         this.cryptoService = cryptoService;
+        this.vaultWriters = vaultWriters;
+        this.vaultReaders = vaultReaders;
     }
 
-    @CachePut(value = CacheConfig.SECRETS_CACHE, key = "#result.id")
-    @Override
-    public SecretEntity create(SecretEntity secret) {
+    /**
+     * Existing DB save logic extracted into a dedicated method.
+     * IMPORTANT: keep this logic identical to the earlier DB-only create() implementation.
+     */
+    public SecretEntity createInDatabase(SecretEntity secret) {
         Instant now = Instant.now();
         secret.setCreatedAt(now);
         secret.setUpdatedAt(now);
         // encrypt value before saving
         secret.setValue(cryptoService.encrypt(secret.getValue()));
         return secretRepository.save(secret);
+    }
+
+    /**
+     * New entry point used by controller when vaultType support is enabled.
+     * Returns SecretEntity for consistent response format (no frontend change).
+     */
+    public SecretEntity storeByVaultType(SecretDto dto) {
+        String vaultType = (dto == null) ? "DB" : dto.getVaultTypeOrDefault();
+        VaultWriter writer = resolveWriter(vaultType);
+        return writer.store(dto);
+    }
+
+    private VaultWriter resolveWriter(String vaultType) {
+        String key = (vaultType == null) ? "DB" : vaultType.trim().toUpperCase(Locale.ROOT);
+        if (!StringUtils.hasText(key)) key = "DB";
+
+        // Map external API values to internal Spring bean names
+        if ("DB".equals(key)) key = "VAULT_DB";
+        else if ("AZURE".equals(key)) key = "VAULT_AZURE";
+        else if ("GCP".equals(key)) key = "VAULT_GCP";
+
+        if (vaultWriters == null) {
+            throw new IllegalStateException("Vault writers are not configured");
+        }
+
+        VaultWriter writer = vaultWriters.get(key);
+        if (writer == null) {
+            throw new IllegalArgumentException("Invalid vaultType: " + vaultType);
+        }
+        return writer;
+    }
+
+    @CachePut(value = CacheConfig.SECRETS_CACHE, key = "#result.id")
+    @Override
+    public SecretEntity create(SecretEntity secret) {
+    // Backward compatible: existing controller still calls this method.
+    // Keep DB behavior unchanged.
+    return createInDatabase(secret);
     }
 
     @CacheEvict(value = CacheConfig.SECRETS_CACHE, allEntries = true)
@@ -69,35 +125,96 @@ public class SecretServiceImpl implements SecretService {
     @Cacheable(value = CacheConfig.SECRETS_CACHE, key = "#id")
     @Override
     public Optional<SecretEntity> get(Long id) {
+        log.info("========== GET SECRET START ==========");
+        log.info("Fetching secret with id: {}", id);
+        
         Optional<SecretEntity> opt = secretRepository.findById(id);
         if (opt.isPresent()) {
             SecretEntity e = opt.get();
-            // decrypt value before returning
+            String vaultType = e.getVaultType();
+            if (vaultType == null) vaultType = "DB"; // backward compatibility
+            
+            log.info("Secret found in DB:");
+            log.info("  - ID: {}", e.getId());
+            log.info("  - Name: {}", e.getName());
+            log.info("  - Type: {}", e.getType());
+            log.info("  - VaultType: {}", vaultType);
+            log.info("  - Value from DB (reference/encrypted): {}", e.getValue());
+            log.info("  - Metadata: {}", e.getMetadata());
+            log.info("  - CreatedAt: {}", e.getCreatedAt());
+            log.info("  - UpdatedAt: {}", e.getUpdatedAt());
+            
             try {
-                e.setValue(cryptoService.decrypt(e.getValue()));
+                // Find appropriate reader and fetch actual value
+                log.info("Finding VaultReader for vaultType: {}", vaultType);
+                VaultReader reader = findReader(vaultType);
+                log.info("Using reader: {}", reader.getClass().getSimpleName());
+                
+                log.info("Calling readSecret('{}') from {} vault...", e.getName(), vaultType);
+                String actualValue = reader.readSecret(e.getName());
+                log.info("Actual value retrieved from {} vault: {}", vaultType, actualValue);
+                
+                e.setValue(actualValue);
+                log.info("Final response value set to: {}", actualValue);
             } catch (Exception ex) {
-                // if decryption fails, throw a runtime exception to surface the error
-                throw new RuntimeException("Failed to decrypt secret value", ex);
+                log.error("Failed to read secret from vault: {}", vaultType, ex);
+                throw new RuntimeException("Failed to read secret from vault: " + vaultType, ex);
+            }
+        } else {
+            log.info("Secret with id {} not found in DB", id);
+        }
+        
+        log.info("========== GET SECRET END ==========");
+        return opt;
+    }
+
+    /**
+     * Find the appropriate VaultReader for the given vault type.
+     */
+    private VaultReader findReader(String vaultType) {
+        for (VaultReader reader : vaultReaders) {
+            if (reader.supports(vaultType)) {
+                return reader;
             }
         }
-        return opt;
+        throw new IllegalArgumentException("No reader found for vault type: " + vaultType);
     }
 
 
     @Override
     public List<SecretEntity> list() {
+        log.info("========== LIST SECRETS START ==========");
+        
+        List<SecretEntity> allSecrets = secretRepository.findAll();
+        log.info("Found {} secrets in database", allSecrets.size());
+        
         // Do not return decrypted values in lists — mask them for safety
-        return secretRepository.findAll().stream().map(e -> {
+        List<SecretEntity> result = allSecrets.stream().map(e -> {
+            String vaultType = e.getVaultType();
+            if (vaultType == null || vaultType.isEmpty()) vaultType = "DB";
+            
+            log.info("Secret [id={}, name='{}', type='{}', vaultType='{}']", 
+                    e.getId(), e.getName(), e.getType(), vaultType);
+            log.info("  - DB stored value (encrypted/reference): {}", e.getValue());
+
+            // Do not attempt to fetch/resolve actual vault values during list.
+            // This endpoint is called frequently by UI and should not trigger external calls.
+            // (Also prevents noisy logs / auth failures when AZURE/GCP aren't configured locally.)
+            
             SecretEntity copy = new SecretEntity();
             copy.setId(e.getId());
             copy.setName(e.getName());
             copy.setType(e.getType());
+            copy.setVaultType(vaultType);
             copy.setMetadata(e.getMetadata());
             copy.setCreatedAt(e.getCreatedAt());
             copy.setUpdatedAt(e.getUpdatedAt());
-            // value intentionally omitted
+            // value intentionally omitted from response
             return copy;
         }).collect(Collectors.toList());
+        
+        log.info("========== LIST SECRETS END ==========");
+        return result;
     }
 
     @Override
@@ -107,26 +224,79 @@ public class SecretServiceImpl implements SecretService {
         List<PluginSecretModel.Fields> s = psm.getFields().stream().filter(d->d.getType().equals("password")).toList();
 
 
-        List<SecretEntity> ett =  secretRepository.findByType(type);
+        List<SecretEntity> ett = secretRepository.findByType(type);
         for (SecretEntity et : ett) {
-            String getDecreptedValues = this.getDecreptedValue(et.getValue());
-            try {
-                Map mp =  mapper.readValue(getDecreptedValues, new TypeReference<Map<String, Object>>() {});
-                System.out.println(mp);
-               for (PluginSecretModel.Fields fld : s){
-                   System.out.println(fld);
-                   mp.put(fld.getId(), "*********************");
-               }
-                et.setValue(mapper.writeValueAsString(mp));
-            } catch (JsonProcessingException e) {
-                throw new RuntimeException(e);
+            String vaultType = et.getVaultType();
+            if (!StringUtils.hasText(vaultType)) vaultType = "DB";
+
+            // IMPORTANT:
+            // - DB vault stores an AES-encrypted JSON blob in `value`.
+            // - AZURE/GCP vault types may store a reference like `azure-kv:<id>`.
+            // Trying to AES-decrypt such references causes Illegal base64 character errors.
+            if (!"DB".equalsIgnoreCase(vaultType)) {
+                // For non-DB vault types, resolve the actual secret and return it in the
+                // same JSON-masked format as DB entries. This preserves UI expectations
+                // while still avoiding exposing password fields.
+                try {
+                    VaultReader reader = findReader(vaultType);
+                    String actualValue = reader.readSecret(et.getName());
+                    log.info("Resolved secret for id={}, name='{}', vaultType='{}'", et.getId(), et.getName(), vaultType);
+
+                    if (!StringUtils.hasText(actualValue)) {
+                        et.setValue("*********************");
+                        continue;
+                    }
+
+                    // Try to parse the returned secret as JSON. If it's JSON, mask password fields
+                    // similarly to DB handling and return the JSON string. If it's not JSON, return
+                    // the raw value (or masked if you prefer).
+                    try {
+                        Map<String, Object> mp = mapper.readValue(actualValue, new TypeReference<Map<String, Object>>() {});
+                        for (PluginSecretModel.Fields fld : s) {
+                            if (mp.containsKey(fld.getId())) {
+                                mp.put(fld.getId(), "*********************");
+                            }
+                        }
+                        et.setValue(mapper.writeValueAsString(mp));
+                    } catch (JsonProcessingException jex) {
+                        // Not JSON - return the raw resolved value. If you want to mask non-JSON
+                        // values by default, replace with the masked string here instead.
+                        et.setValue(actualValue);
+                    }
+
+                } catch (Exception ex) {
+                    log.warn("Failed to resolve secret for id={}, name='{}', vaultType='{}': {}", et.getId(), et.getName(), vaultType, ex.getMessage());
+                    et.setValue("*********************");
+                }
+                continue;
             }
 
+            String decrypted;
+            try {
+                decrypted = this.getDecreptedValue(et.getValue());
+                log.info("Decrypted DB secret for id={}, name='{}': {}", et.getId(), et.getName(), decrypted);
+            } catch (RuntimeException ex) {
+                // Fail-soft: one bad row should not break the whole list.
+                log.warn("Failed to decrypt secret value for id={} (type={}, vaultType={}). Returning masked value.",
+                        et.getId(), et.getType(), vaultType, ex);
+                et.setValue("*********************");
+                continue;
+            }
 
-
+            try {
+                Map<String, Object> mp = mapper.readValue(decrypted, new TypeReference<Map<String, Object>>() {});
+                for (PluginSecretModel.Fields fld : s) {
+                    mp.put(fld.getId(), "*********************");
+                }
+                et.setValue(mapper.writeValueAsString(mp));
+            } catch (JsonProcessingException e) {
+                // Same idea: fail-soft and mask.
+                log.warn("Failed to parse decrypted secret JSON for id={} (type={}, vaultType={}). Returning masked value.",
+                        et.getId(), et.getType(), vaultType, e);
+                et.setValue("*********************");
+            }
         }
 
-        System.out.println(ett);
         return ett;
     }
 
@@ -145,7 +315,40 @@ public class SecretServiceImpl implements SecretService {
     @CacheEvict(value = CacheConfig.SECRETS_CACHE, allEntries = true)
     @Override
     public void delete(Long id) {
-        secretRepository.deleteById(id);
+        log.info("========== DELETE SECRET START ==========");
+        log.info("Deleting secret with id: {}", id);
+        
+        Optional<SecretEntity> opt = secretRepository.findById(id);
+        if (opt.isEmpty()) {
+            log.warn("Secret with id {} not found for deletion", id);
+            throw new RuntimeException("Secret not found: " + id);
+        }
+        
+        SecretEntity entity = opt.get();
+        String vaultType = entity.getVaultType();
+        if (vaultType == null) vaultType = "DB";
+        
+        log.info("Secret found - Name: {}, VaultType: {}", entity.getName(), vaultType);
+        
+        // Find the appropriate writer and delete
+        VaultWriter writer = findWriter(vaultType);
+        log.info("Using writer: {} for deletion", writer.getClass().getSimpleName());
+        
+        writer.delete(entity.getName());
+        
+        log.info("========== DELETE SECRET END ==========");
+    }
+
+    /**
+     * Find the appropriate VaultWriter for the given vault type.
+     */
+    private VaultWriter findWriter(String vaultType) {
+        for (VaultWriter writer : vaultWriters.values()) {
+            if (writer.supports(vaultType)) {
+                return writer;
+            }
+        }
+        throw new IllegalArgumentException("No writer found for vault type: " + vaultType);
     }
 
     @Cacheable(value = CacheConfig.SECRETS_CACHE, key = "'name:' + #name")
@@ -154,7 +357,25 @@ public class SecretServiceImpl implements SecretService {
         Optional<SecretEntity> opt = secretRepository.findByName(name);
         if (opt.isPresent()) {
             SecretEntity e = opt.get();
-            e.setValue(cryptoService.decrypt(e.getValue()));
+            String vaultType = e.getVaultType();
+            if (!StringUtils.hasText(vaultType)) vaultType = "DB";
+
+            // DB secrets are stored AES-encrypted in ff_secrets.value
+            if ("DB".equalsIgnoreCase(vaultType)) {
+                e.setValue(cryptoService.decrypt(e.getValue()));
+                return opt;
+            }
+
+            // Non-DB (AZURE/GCP) secrets store a reference in ff_secrets.value.
+            // For runtime use, resolve the actual secret from the configured vault.
+            try {
+                VaultReader reader = findReader(vaultType);
+                String actualValue = reader.readSecret(e.getName());
+                e.setValue(actualValue);
+            } catch (Exception ex) {
+                log.error("Failed to resolve secret '{}' from vaultType={}", name, vaultType, ex);
+                throw new RuntimeException("Failed to read secret from vault: " + vaultType, ex);
+            }
         }
         return opt;
     }

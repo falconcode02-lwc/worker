@@ -1,10 +1,18 @@
 package io.falconFlow.entity;
 
+import java.time.Instant;
+
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
-import jakarta.persistence.*;
-import java.time.Instant;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.Index;
+import jakarta.persistence.Lob;
+import jakarta.persistence.Table;
 
 @Entity
 @Table(name = "ff_secrets",
@@ -22,10 +30,13 @@ public class SecretEntity {
     @Column(nullable = false)
     private String type; // e.g., "vault", "openai", "aws", "generic"
 
+    @Column(nullable = false)
+    private String vaultType = "DB"; // DB, AZURE, GCP - where secret is stored
+
     @Lob
     @Column(nullable = false)
     @JdbcTypeCode(SqlTypes.LONGVARCHAR)
-    private String value; // stored as-is; consider encrypting in future
+    private String value; // For DB: actual encrypted value. For AZURE/GCP: reference/version info
 
     @Lob
     private String metadata; // free-form JSON or string
@@ -41,6 +52,9 @@ public class SecretEntity {
 
     public String getType() { return type; }
     public void setType(String type) { this.type = type; }
+
+    public String getVaultType() { return vaultType; }
+    public void setVaultType(String vaultType) { this.vaultType = vaultType; }
 
     public String getValue() { return value; }
     public void setValue(String value) { this.value = value; }

@@ -1,33 +1,76 @@
 package io.falconFlow.controller;
 
-import io.falconFlow.entity.SecretEntity;
-import io.falconFlow.services.isolateservices.PluginManagerService;
-import io.falconFlow.services.secret.SecretService;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
-
 import java.net.URI;
 import java.util.List;
+import java.util.Set;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.server.ResponseStatusException;
+
+import io.falconFlow.entity.SecretEntity;
+import io.falconFlow.services.isolateservices.PluginManagerService;
+import io.falconFlow.services.secret.SecretDto;
+import io.falconFlow.services.secret.SecretService;
+import io.falconFlow.services.secret.SecretServiceImpl;
 
 @RestController
 @RequestMapping("/api/secrets")
 public class SecretController {
 
     private final SecretService secretService;
+    private final SecretServiceImpl secretServiceImpl;
+
+    private static final Set<String> ALLOWED_VAULT_TYPES = Set.of("DB", "AZURE", "GCP");
 
     @Autowired
     PluginManagerService pluginService;
 
     @Autowired
-    public SecretController(SecretService secretService) {
+    public SecretController(SecretService secretService, SecretServiceImpl secretServiceImpl) {
         this.secretService = secretService;
+        this.secretServiceImpl = secretServiceImpl;
     }
 
+    /**
+     * Create a secret in the specified vault.
+     * 
+     * Request body:
+     * {
+     *   "name": "my-secret",
+     *   "type": "apikey",
+     *   "value": "secret-value",
+     *   "metadata": "optional metadata",
+     *   "vaultType": "DB" | "AZURE" | "GCP"  (default: "DB")
+     * }
+     * 
+     * Response: Same SecretEntity format for all vault types.
+     * For external vaults (AZURE/GCP), a placeholder entity is returned
+     * since they don't store in local DB.
+     */
     @PostMapping
-    public ResponseEntity<SecretEntity> create(@RequestBody SecretEntity secret) {
-        SecretEntity created = secretService.create(secret);
-        return ResponseEntity.created(URI.create("/api/secrets/" + created.getId())).body(created);
+    public ResponseEntity<SecretEntity> create(@RequestBody SecretDto request) {
+        String vaultType = (request == null) ? "DB" : request.getVaultTypeOrDefault();
+        if (!ALLOWED_VAULT_TYPES.contains(vaultType)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid vaultType. Allowed: DB, AZURE, GCP");
+        }
+
+        try {
+            SecretEntity result = secretServiceImpl.storeByVaultType(request);
+            return ResponseEntity.created(URI.create("/api/secrets/" + result.getId())).body(result);
+        } catch (IllegalArgumentException ex) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, ex.getMessage());
+        }
     }
 
     @GetMapping("/{id}")

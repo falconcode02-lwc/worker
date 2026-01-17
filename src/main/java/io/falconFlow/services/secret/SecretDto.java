@@ -1,7 +1,8 @@
 package io.falconFlow.services.secret;
 
-import io.falconFlow.entity.SecretEntity;
 import java.time.Instant;
+
+import io.falconFlow.entity.SecretEntity;
 
 public class SecretDto {
     private Long id;
@@ -9,6 +10,11 @@ public class SecretDto {
     private String type;
     private String value;
     private String metadata;
+    /**
+     * Where to store the secret.
+     * Allowed: DB (default), AZURE, GCP.
+     */
+    private String vaultType;
     private Instant createdAt;
     private Instant updatedAt;
 
@@ -22,6 +28,7 @@ public class SecretDto {
         d.type = e.getType();
         d.value = e.getValue();
         d.metadata = e.getMetadata();
+        d.vaultType = e.getVaultType();
         d.createdAt = e.getCreatedAt();
         d.updatedAt = e.getUpdatedAt();
         return d;
@@ -39,6 +46,13 @@ public class SecretDto {
         return e;
     }
 
+    public String getVaultTypeOrDefault() {
+        if (vaultType == null || vaultType.trim().isEmpty()) {
+            return "DB";
+        }
+        return vaultType.trim().toUpperCase();
+    }
+
     // getters and setters
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
@@ -50,6 +64,8 @@ public class SecretDto {
     public void setValue(String value) { this.value = value; }
     public String getMetadata() { return metadata; }
     public void setMetadata(String metadata) { this.metadata = metadata; }
+    public String getVaultType() { return vaultType; }
+    public void setVaultType(String vaultType) { this.vaultType = vaultType; }
     public Instant getCreatedAt() { return createdAt; }
     public void setCreatedAt(Instant createdAt) { this.createdAt = createdAt; }
     public Instant getUpdatedAt() { return updatedAt; }
