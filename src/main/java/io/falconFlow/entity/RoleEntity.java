@@ -2,15 +2,15 @@ package io.falconFlow.entity;
 
 import jakarta.persistence.*;
 import lombok.Data;
-import org.hibernate.annotations.CreationTimestamp;
+import lombok.EqualsAndHashCode;
 
-import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Entity
 @Table(name = "ff_roles")
 @Data
-public class RoleEntity {
+@EqualsAndHashCode(callSuper = false)
+public class RoleEntity extends AuditableEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.AUTO)
@@ -25,8 +25,4 @@ public class RoleEntity {
 
     @Column(columnDefinition = "TEXT")
     private String permissions;
-
-    @CreationTimestamp
-    @Column(name = "created_at", updatable = false)
-    private LocalDateTime createdAt;
 }

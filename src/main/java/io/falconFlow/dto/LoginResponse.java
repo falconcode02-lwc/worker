@@ -11,6 +11,7 @@ public class LoginResponse {
     private String username;
     private String fullName;
     private String email;
+    private String roleName;
     private Integer remainingAttempts;
     private boolean accountLocked;
 }

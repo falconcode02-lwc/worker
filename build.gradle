@@ -44,7 +44,7 @@ dependencies {
         exclude group: 'org.springframework.boot', module: 'spring-boot-starter-tomcat'
     }
     implementation("org.apache.commons:commons-lang3:3.20.0")
-	providedRuntime 'org.springframework.boot:spring-boot-starter-tomcat'
+//	providedRuntime 'org.springframework.boot:spring-boot-starter-tomcat'
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 
@@ -62,6 +62,11 @@ dependencies {
 
     implementation 'net.thisptr:jackson-jq:1.6.0'
     implementation 'com.fasterxml.jackson.core:jackson-databind'
+    
+    // Spring Security for BCrypt password hashing
+    implementation 'org.springframework.security:spring-security-crypto'
+    implementation 'org.bouncycastle:bcprov-jdk15on:1.70'
+    
     implementation 'org.springframework.boot:spring-boot-starter-webflux'
     implementation 'com.mysql:mysql-connector-j:8.4.0'
     implementation 'org.postgresql:postgresql:42.7.2'

@@ -51,7 +51,10 @@ public class RoleService {
         dto.setRoleName(entity.getRoleName());
         dto.setDescription(entity.getDescription());
         dto.setPermissions(entity.getPermissions());
-        dto.setCreatedAt(entity.getCreatedAt());
+        dto.setCreatedTime(entity.getCreatedTime());
+        dto.setModifiedTime(entity.getModifiedTime());
+        dto.setCreatedBy(entity.getCreatedBy());
+        dto.setModifiedBy(entity.getModifiedBy());
         return dto;
     }
 

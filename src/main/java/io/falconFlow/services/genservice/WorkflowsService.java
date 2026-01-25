@@ -113,6 +113,8 @@ public class WorkflowsService {
         dto.setWorkflowJsonRaw(entity.getWorkflowJsonRaw());
         dto.setCreatedTime(entity.getCreatedTime());
         dto.setModifiedTime(entity.getModifiedTime());
+        dto.setCreatedBy(entity.getCreatedBy());
+        dto.setModifiedBy(entity.getModifiedBy());
         return dto;
     }
 

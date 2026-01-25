@@ -2,21 +2,26 @@ package io.falconFlow.entity;
 
 import jakarta.persistence.*;
 import lombok.Data;
-import org.hibernate.annotations.CreationTimestamp;
-import org.hibernate.annotations.UpdateTimestamp;
+import lombok.EqualsAndHashCode;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
 @Entity
 @Table(name = "users")
 @Data
-public class UserEntity {
+@EqualsAndHashCode(callSuper = false)
+public class UserEntity extends AuditableEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.AUTO)
     @Column(name = "user_id", updatable = false, nullable = false)
     private UUID userId;
+
+    @Column(name = "role_id")
+    private UUID roleId;
 
     @Column(nullable = false, unique = true)
     private String username;
@@ -45,11 +50,19 @@ public class UserEntity {
     @Column(name = "last_login")
     private LocalDateTime lastLogin;
 
-    @CreationTimestamp
-    @Column(name = "created_at", updatable = false)
-    private LocalDateTime createdAt;
+    @ManyToMany(fetch = FetchType.LAZY)
+    @JoinTable(
+        name = "user_workspaces",
+        joinColumns = @JoinColumn(name = "user_id"),
+        inverseJoinColumns = @JoinColumn(name = "workspace_id")
+    )
+    private List<WorkSpaceEntity> workspaces = new ArrayList<>();
 
-    @UpdateTimestamp
-    @Column(name = "updated_at")
-    private LocalDateTime updatedAt;
+    @ManyToMany(fetch = FetchType.LAZY)
+    @JoinTable(
+        name = "user_projects",
+        joinColumns = @JoinColumn(name = "user_id"),
+        inverseJoinColumns = @JoinColumn(name = "project_id")
+    )
+    private List<ProjectEntity> projects = new ArrayList<>();
 }

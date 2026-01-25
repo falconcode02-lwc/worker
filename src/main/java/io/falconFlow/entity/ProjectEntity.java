@@ -12,7 +12,7 @@ import java.util.UUID;
 @Entity
 @Table(name = "ff_projects")
 @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
-public class ProjectEntity {
+public class ProjectEntity extends AuditableEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
@@ -39,12 +39,6 @@ public class ProjectEntity {
 
     @Column(name = "workspace_code", nullable = false, length = 200)
     private String workspaceCode;
-
-    @Column(name = "created_at")
-    private Instant createdAt;
-
-    @Column(name = "updated_at")
-    private Instant updatedAt;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "workspace_id", nullable = false)
@@ -74,20 +68,16 @@ public class ProjectEntity {
     public void setAccessibility(Accessibility accessibility) { this.accessibility = accessibility; }
     public String getWorkspaceCode() { return workspaceCode; }
     public void setWorkspaceCode(String workspaceCode) { this.workspaceCode = workspaceCode; }
-    public Instant getCreatedAt() { return createdAt; }
-    public void setCreatedAt(Instant createdAt) { this.createdAt = createdAt; }
-    public Instant getUpdatedAt() { return updatedAt; }
-    public void setUpdatedAt(Instant updatedAt) { this.updatedAt = updatedAt; }
 
     @PrePersist
     public void prePersist() {
-        this.createdAt = Instant.now();
-        this.updatedAt = Instant.now();
         if (this.accessibility == null) this.accessibility = Accessibility.PRIVATE;
     }
 
     @PreUpdate
-    public void preUpdate() { this.updatedAt = Instant.now(); }
+    public void preUpdate() {
+        // No-op: Audit fields are handled by AuditEntityListener
+    }
 
     public WorkSpaceEntity getWorkspace() {
         return workspace;
