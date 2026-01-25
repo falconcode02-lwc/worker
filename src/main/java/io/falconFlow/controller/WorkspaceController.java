@@ -42,9 +42,12 @@ public class WorkspaceController {
             @RequestParam(defaultValue = "0") int page,
 
             @Parameter(description = "Number of records per page", example = "20")
-            @RequestParam(defaultValue = "20") int size) {
+            @RequestParam(defaultValue = "20") int size,
 
-        return workspaceService.listWorkspaces(page, size);
+            @Parameter(description = "User ID for filtering")
+            @RequestHeader(value = "X-User-Id", required = false) UUID userId) {
+
+        return workspaceService.listWorkspaces(page, size, userId);
     }
 
     // List all workspaces of a particular organization
@@ -65,9 +68,12 @@ public class WorkspaceController {
             @RequestParam(defaultValue = "20") int size,
 
             @Parameter(description = "Organization ID", example = "org-123")
-            @PathVariable String orgId) {
+            @PathVariable String orgId,
 
-        return workspaceService.listWorkspaces(page, size, orgId);
+            @Parameter(description = "User ID for filtering")
+            @RequestHeader(value = "X-User-Id", required = false) UUID userId) {
+
+        return workspaceService.listWorkspaces(page, size, orgId, userId);
     }
 
     // Create new workspace

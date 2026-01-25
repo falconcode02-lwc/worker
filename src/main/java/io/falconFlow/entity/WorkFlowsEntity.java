@@ -6,9 +6,6 @@ import org.hibernate.type.SqlTypes;
 
 import jakarta.persistence.*;
 
-import java.time.LocalDateTime;
-import java.time.ZoneId;
-
 // import jakarta.persistence.UniqueConstraint;
 
 @Entity
@@ -17,7 +14,7 @@ import java.time.ZoneId;
     uniqueConstraints = {@UniqueConstraint(name = "ff_functions_UN", columnNames = "code")}
 )
 @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
-public class WorkFlowsEntity {
+public class WorkFlowsEntity extends AuditableEntity {
 
   @Id
   @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -51,16 +48,6 @@ public class WorkFlowsEntity {
 @Column(name = "active", nullable = false)
 private boolean active = true;
 
-  @Column(
-      name = "createdTime",
-      nullable = false,
-      updatable = false,
-      columnDefinition = "TIMESTAMP DEFAULT CURRENT_TIMESTAMP")
-  private LocalDateTime createdTime;
-
-  @Column(name = "modifiedTime")
-  private LocalDateTime modifiedTime;
-
   @ManyToOne(fetch = FetchType.LAZY)
   @JoinColumn(name = "project_id")
   @JsonIgnoreProperties({"workflows", "hibernateLazyInitializer", "handler"})
@@ -68,14 +55,12 @@ private boolean active = true;
 
   @PrePersist
   public void prePersist() {
-    this.createdTime = LocalDateTime.now(ZoneId.systemDefault());
     this.version = 1; // start versioning at 1
     this.active = true;
   }
 
   @PreUpdate
   public void preUpdate() {
-    this.modifiedTime = LocalDateTime.now(ZoneId.systemDefault());
     if (this.version == null) {
       this.version = 1;
     } else {
@@ -115,21 +100,7 @@ private boolean active = true;
     this.version = version;
   }
 
-  public LocalDateTime getCreatedTime() {
-    return createdTime;
-  }
 
-  public void setCreatedTime(LocalDateTime createdTime) {
-    this.createdTime = createdTime;
-  }
-
-  public LocalDateTime getModifiedTime() {
-    return modifiedTime;
-  }
-
-  public void setModifiedTime(LocalDateTime modifiedTime) {
-    this.modifiedTime = modifiedTime;
-  }
 
     public String getDescription() {
         return description;

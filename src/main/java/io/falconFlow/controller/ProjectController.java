@@ -22,6 +22,9 @@ public class ProjectController {
     @Autowired
     private WorkspaceRepository workspaceRepository;
 
+    @Autowired
+    private io.falconFlow.services.ProjectService projectService;
+
     // CREATE - POSTMAN POST
     @PostMapping
     public ResponseEntity<ProjectEntity> create(@RequestBody ProjectEntity project) {
@@ -38,8 +41,10 @@ public class ProjectController {
 
     // LIST ALL - POSTMAN GET
     @GetMapping("/workspace/{workspaceCode}")
-    public ResponseEntity<List<ProjectEntity>> getByWorkspace(@PathVariable String workspaceCode) {
-        List<ProjectEntity> projects = projectRepository.findByWorkspaceCode(workspaceCode);
+    public ResponseEntity<List<ProjectEntity>> getByWorkspace(
+            @PathVariable String workspaceCode,
+            @RequestHeader(value = "X-User-Id", required = false) UUID userId) {
+        List<ProjectEntity> projects = projectService.getByWorkspace(workspaceCode, userId);
         return ResponseEntity.ok(projects);
     }
 
@@ -51,8 +56,9 @@ public class ProjectController {
                 .orElse(ResponseEntity.notFound().build());
     }
     @GetMapping
-    public ResponseEntity<List<ProjectEntity>> getAllProjects() {
-        return ResponseEntity.ok(projectRepository.findAll());
+    public ResponseEntity<List<ProjectEntity>> getAllProjects(
+            @RequestHeader(value = "X-User-Id", required = false) UUID userId) {
+        return ResponseEntity.ok(projectService.getAllProjects(userId));
     }
 
     // ADD THIS: Start workflow for project (Temporal integration)

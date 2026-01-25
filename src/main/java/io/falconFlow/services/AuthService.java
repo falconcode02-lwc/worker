@@ -5,6 +5,7 @@ import io.falconFlow.dto.LoginResponse;
 import io.falconFlow.entity.UserEntity;
 import io.falconFlow.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
@@ -14,6 +15,8 @@ import java.time.LocalDateTime;
 public class AuthService {
 
     private final UserRepository userRepository;
+    private final io.falconFlow.repository.RoleRepository roleRepository;
+    private final PasswordEncoder passwordEncoder;
     private static final int MAX_LOGIN_ATTEMPTS = 3;
 
     public LoginResponse login(LoginRequest request) {
@@ -42,8 +45,8 @@ public class AuthService {
             return response;
         }
 
-        // Verify password (in production, use BCrypt or similar)
-        if (!user.getPassword().equals(request.getPassword())) {
+        // Verify password using BCrypt
+        if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
             handleFailedLogin(user);
             int remainingAttempts = MAX_LOGIN_ATTEMPTS - user.getFailedLoginAttempts();
             
@@ -68,6 +71,13 @@ public class AuthService {
         response.setUsername(user.getUsername());
         response.setFullName(user.getFullName());
         response.setEmail(user.getEmail());
+        
+        if (user.getRoleId() != null) {
+            roleRepository.findById(user.getRoleId()).ifPresent(role -> {
+                response.setRoleName(role.getRoleName());
+            });
+        }
+        
         response.setRemainingAttempts(MAX_LOGIN_ATTEMPTS);
         
         return response;

@@ -10,5 +10,8 @@ public class RoleDto {
     private String roleName;
     private String description;
     private String permissions;
-    private LocalDateTime createdAt;
+    private LocalDateTime createdTime;
+    private LocalDateTime modifiedTime;
+    private String createdBy;
+    private String modifiedBy;
 }

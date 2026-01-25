@@ -14,6 +14,8 @@ public class    WorkflowsDTO {
     private String code;
     private LocalDateTime createdTime;
     private LocalDateTime modifiedTime;
+    private String createdBy;
+    private String modifiedBy;
 
 
     // Getters and Setters
@@ -58,5 +60,21 @@ public class    WorkflowsDTO {
 
     public void setController(String controller) {
         this.controller = controller;
+    }
+
+    public String getCreatedBy() {
+        return createdBy;
+    }
+
+    public void setCreatedBy(String createdBy) {
+        this.createdBy = createdBy;
+    }
+
+    public String getModifiedBy() {
+        return modifiedBy;
+    }
+
+    public void setModifiedBy(String modifiedBy) {
+        this.modifiedBy = modifiedBy;
     }
 }

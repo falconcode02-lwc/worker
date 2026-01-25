@@ -52,7 +52,6 @@ public class WorkSpaceEntity extends AuditableEntity{
 
     @PrePersist
     public void prePersist() {
-        super.prePersist();
         this.active = true;
     }
 

@@ -3,6 +3,8 @@ package io.falconFlow.services.workspace;
 import io.falconFlow.dto.*;
 import io.falconFlow.entity.FormsEntity;
 import io.falconFlow.entity.WorkSpaceEntity;
+import io.falconFlow.entity.UserEntity;
+import io.falconFlow.entity.RoleEntity;
 import io.falconFlow.repository.WorkspaceRepository;
 import jakarta.transaction.Transactional;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -21,28 +23,59 @@ public class WorkspaceService {
     private WorkspaceRepository workspaceRepository;
 
     @Autowired
+    private io.falconFlow.repository.UserRepository userRepository;
+
+    @Autowired
+    private io.falconFlow.repository.RoleRepository roleRepository;
+
+    @Autowired
     private TemporalNamespaceService temporalNamespaceService;
 
     @Autowired
     private io.falconFlow.services.workspace.DynamicWorkerManager workerManager;
 
-    public Page<WorkspaceListDTO> listWorkspaces(int page, int size, String orgId) {
+    public Page<WorkspaceListDTO> listWorkspaces(int page, int size, String orgId, UUID userId) {
         Pageable pageable = PageRequest.of(
                 page,
                 size,
                 Sort.by("createdTime").descending()
         );
+
+        if (userId != null) {
+            return userRepository.findById(userId).map(user -> {
+                RoleEntity role = roleRepository.findById(user.getRoleId()).orElse(null);
+                if (role != null && (role.getRoleName().equalsIgnoreCase("ADMIN") || role.getRoleName().equalsIgnoreCase("SUPER_ADMIN"))) {
+                    return workspaceRepository.findByOrgId(orgId, pageable).map(this::toWorkspaceDto);
+                }
+                // Filter by orgId AND userId
+                return workspaceRepository.findByOrgIdAndUserId(orgId, userId, pageable).map(this::toWorkspaceDto);
+            }).orElse(workspaceRepository.findByOrgId(orgId, pageable).map(this::toWorkspaceDto));
+        }
 
         return workspaceRepository.findByOrgId(orgId,pageable).map(this::toWorkspaceDto);
     }
-    public Page<WorkspaceListDTO> listWorkspaces(int page, int size) {
+    public Page<WorkspaceListDTO> listWorkspaces(int page, int size, UUID userId) {
         Pageable pageable = PageRequest.of(
                 page,
                 size,
                 Sort.by("createdTime").descending()
         );
 
+        if (userId != null) {
+            return userRepository.findById(userId).map(user -> {
+                RoleEntity role = roleRepository.findById(user.getRoleId()).orElse(null);
+                if (role != null && (role.getRoleName().equalsIgnoreCase("ADMIN") || role.getRoleName().equalsIgnoreCase("SUPER_ADMIN"))) {
+                    return workspaceRepository.findAll(pageable).map(this::toWorkspaceDto);
+                }
+                return workspaceRepository.findByUserId(userId, pageable).map(this::toWorkspaceDto);
+            }).orElse(workspaceRepository.findAll(pageable).map(this::toWorkspaceDto));
+        }
+
         return workspaceRepository.findAll(pageable).map(this::toWorkspaceDto);
+    }
+
+    public Page<WorkspaceListDTO> listWorkspaces(int page, int size) {
+        return listWorkspaces(page, size, null);
     }
 
     @Transactional
@@ -132,6 +165,8 @@ public class WorkspaceService {
         dto.setIcon(entity.getIcon());
         dto.setCreatedTime(entity.getCreatedTime());
         dto.setModifiedTime(entity.getModifiedTime());
+        dto.setCreatedBy(entity.getCreatedBy());
+        dto.setModifiedBy(entity.getModifiedBy());
         return dto;
     }
 
@@ -145,6 +180,9 @@ public class WorkspaceService {
         dto.setIcon(entity.getIcon());
         dto.setDescription(entity.getDescription());
         dto.setCreatedTime(entity.getCreatedTime());
+        dto.setModifiedTime(entity.getModifiedTime());
+        dto.setCreatedBy(entity.getCreatedBy());
+        dto.setModifiedBy(entity.getModifiedBy());
         return dto;
     }
 

@@ -27,6 +27,24 @@ public interface WorkspaceRepository extends JpaRepository<WorkSpaceEntity, UUID
 
     boolean existsByCode(String code);
 
+    @Query(value = "SELECT w.* FROM ff_workspaces w " +
+                   "JOIN user_workspaces uw ON w.id = uw.workspace_id " +
+                   "WHERE uw.user_id = :userId", 
+           countQuery = "SELECT count(*) FROM ff_workspaces w " +
+                        "JOIN user_workspaces uw ON w.id = uw.workspace_id " +
+                        "WHERE uw.user_id = :userId",
+           nativeQuery = true)
+    Page<WorkSpaceEntity> findByUserId(@Param("userId") UUID userId, Pageable pageable);
+
+    @Query(value = "SELECT w.* FROM ff_workspaces w " +
+                   "JOIN user_workspaces uw ON w.id = uw.workspace_id " +
+                   "WHERE uw.user_id = :userId AND w.org_id = :orgId", 
+           countQuery = "SELECT count(*) FROM ff_workspaces w " +
+                        "JOIN user_workspaces uw ON w.id = uw.workspace_id " +
+                        "WHERE uw.user_id = :userId AND w.org_id = :orgId",
+           nativeQuery = true)
+    Page<WorkSpaceEntity> findByOrgIdAndUserId(@Param("orgId") String orgId, @Param("userId") UUID userId, Pageable pageable);
+
     Optional<WorkSpaceEntity> findById(UUID id);
 }
 

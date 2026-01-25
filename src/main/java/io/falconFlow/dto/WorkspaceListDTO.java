@@ -63,6 +63,18 @@ public class WorkspaceListDTO {
             example = "2024-06-05T14:42:10"
     )
     private LocalDateTime modifiedTime;
+
+    @Schema(
+            description = "User who created the workspace",
+            example = "admin"
+    )
+    private String createdBy;
+
+    @Schema(
+            description = "User who last modified the workspace",
+            example = "admin"
+    )
+    private String modifiedBy;
     //    private String orgId;
 
     public UUID getId() {
@@ -143,5 +155,21 @@ public class WorkspaceListDTO {
 
     public void setActive(boolean active) {
         this.active = active;
+    }
+
+    public String getCreatedBy() {
+        return createdBy;
+    }
+
+    public void setCreatedBy(String createdBy) {
+        this.createdBy = createdBy;
+    }
+
+    public String getModifiedBy() {
+        return modifiedBy;
+    }
+
+    public void setModifiedBy(String modifiedBy) {
+        this.modifiedBy = modifiedBy;
     }
 }

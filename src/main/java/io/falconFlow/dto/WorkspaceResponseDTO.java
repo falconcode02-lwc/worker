@@ -58,6 +58,24 @@ public class WorkspaceResponseDTO {
     )
     private LocalDateTime createdTime;
 
+    @Schema(
+            description = "Timestamp when the workspace was last modified",
+            example = "2024-06-05T14:42:10"
+    )
+    private LocalDateTime modifiedTime;
+
+    @Schema(
+            description = "User who created the workspace",
+            example = "admin"
+    )
+    private String createdBy;
+
+    @Schema(
+            description = "User who last modified the workspace",
+            example = "admin"
+    )
+    private String modifiedBy;
+
     public UUID getId() {
         return id;
     }
@@ -120,5 +138,29 @@ public class WorkspaceResponseDTO {
 
     public void setDescription(String description) {
         this.description = description;
+    }
+
+    public LocalDateTime getModifiedTime() {
+        return modifiedTime;
+    }
+
+    public void setModifiedTime(LocalDateTime modifiedTime) {
+        this.modifiedTime = modifiedTime;
+    }
+
+    public String getCreatedBy() {
+        return createdBy;
+    }
+
+    public void setCreatedBy(String createdBy) {
+        this.createdBy = createdBy;
+    }
+
+    public String getModifiedBy() {
+        return modifiedBy;
+    }
+
+    public void setModifiedBy(String modifiedBy) {
+        this.modifiedBy = modifiedBy;
     }
 }
